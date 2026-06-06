@@ -48,9 +48,7 @@ class AnthropicAdapter:
         self._enabled = settings.has_anthropic
         self._log = logger
 
-    async def generate_incident_narrative(
-        self, incident_data: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def generate_incident_narrative(self, incident_data: dict[str, Any]) -> dict[str, Any]:
         if not self._enabled:
             return {
                 "narrative_enabled": False,
@@ -63,9 +61,7 @@ class AnthropicAdapter:
         )
         return await self._call(prompt, _REPORT_SYSTEM_PROMPT)
 
-    async def generate_weekly_narrative(
-        self, summary_data: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def generate_weekly_narrative(self, summary_data: dict[str, Any]) -> dict[str, Any]:
         if not self._enabled:
             return {
                 "narrative_enabled": False,

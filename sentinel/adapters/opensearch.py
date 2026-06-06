@@ -8,7 +8,7 @@ Security: queries are parameterised — user input never appears
 in raw Lucene query strings. Only structured query DSL is used.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from opentelemetry import trace
@@ -65,12 +65,12 @@ class OpenSearchAdapter(BaseAdapter):
         max_results: int = 50,
     ) -> list[dict[str, Any]]:
         if self.is_mock:
-            return []
+            return mock.search_logs(query, time_window_hours, max_results)
 
         if self._breaker.is_open():
             raise CircuitOpenError(self.adapter_name)
 
-        since = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
+        since = datetime.now(UTC) - timedelta(hours=time_window_hours)
         # Parameterised query — user input in `match` clause, never in raw Lucene
         body = {
             "size": min(max_results, 500),
@@ -86,9 +86,7 @@ class OpenSearchAdapter(BaseAdapter):
         url = f"{self._base_url}/{self._index_logs}/_search"
         with tracer.start_as_current_span("opensearch.search_logs"):
             try:
-                resp = await self._retry_request(
-                    "POST", url, json=body, headers=self._headers
-                )
+                resp = await self._retry_request("POST", url, json=body, headers=self._headers)
                 resp.raise_for_status()
                 await self._breaker.record_success()
                 hits = resp.json().get("hits", {}).get("hits", [])
@@ -110,16 +108,17 @@ class OpenSearchAdapter(BaseAdapter):
         if self._breaker.is_open():
             raise CircuitOpenError(self.adapter_name)
 
-        body: dict[str, Any] = {"size": min(limit, 1000), "sort": [{"timestamp": {"order": "desc"}}]}
+        body: dict[str, Any] = {
+            "size": min(limit, 1000),
+            "sort": [{"timestamp": {"order": "desc"}}],
+        }
         if status:
             body["query"] = {"term": {"status": status}}
 
         url = f"{self._base_url}/{self._index_alerts}/_search"
         with tracer.start_as_current_span("opensearch.get_alerts"):
             try:
-                resp = await self._retry_request(
-                    "POST", url, json=body, headers=self._headers
-                )
+                resp = await self._retry_request("POST", url, json=body, headers=self._headers)
                 resp.raise_for_status()
                 await self._breaker.record_success()
                 hits = resp.json().get("hits", {}).get("hits", [])
@@ -142,9 +141,10 @@ class OpenSearchAdapter(BaseAdapter):
                 "closed": 1,
             }
 
-        since = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
+        since = datetime.now(UTC) - timedelta(hours=time_window_hours)
         body = {
             "size": 0,
+            "track_total_hits": True,
             "query": {"range": {"timestamp": {"gte": since.isoformat()}}},
             "aggs": {
                 "by_severity": {"terms": {"field": "severity.keyword"}},
@@ -154,17 +154,35 @@ class OpenSearchAdapter(BaseAdapter):
         url = f"{self._base_url}/{self._index_alerts}/_search"
         with tracer.start_as_current_span("opensearch.aggregate_alerts"):
             try:
-                resp = await self._retry_request(
-                    "POST", url, json=body, headers=self._headers
-                )
+                resp = await self._retry_request("POST", url, json=body, headers=self._headers)
                 resp.raise_for_status()
                 await self._breaker.record_success()
-                aggs = resp.json().get("aggregations", {})
-                return {"raw_aggregations": aggs}
+                return self._parse_aggregations(resp.json())
             except Exception as exc:
                 await self._breaker.record_failure()
                 self._log.warning("opensearch_aggregate_failed", error=str(exc))
                 return {}
+
+    @staticmethod
+    def _parse_aggregations(body: dict[str, Any]) -> dict[str, Any]:
+        """Normalise raw OpenSearch aggregation buckets into the weekly_summary
+        contract — the SAME `{total, by_severity, open, closed}` shape the mock
+        branch returns, so the tool behaves identically against a live backend."""
+        aggs = body.get("aggregations", {})
+        total = body.get("hits", {}).get("total", {})
+        total_count = total.get("value", 0) if isinstance(total, dict) else int(total or 0)
+
+        by_severity = {
+            b["key"]: b["doc_count"] for b in aggs.get("by_severity", {}).get("buckets", [])
+        }
+        by_status = {b["key"]: b["doc_count"] for b in aggs.get("by_status", {}).get("buckets", [])}
+        return {
+            "total": total_count,
+            "by_severity": by_severity,
+            "open": by_status.get("open", 0),
+            "closed": by_status.get("closed", 0),
+            "raw_aggregations": aggs,
+        }
 
     async def index_document(self, index: str, doc_id: str, document: dict[str, Any]) -> bool:
         """Write a document — used by the simulator."""
@@ -174,9 +192,7 @@ class OpenSearchAdapter(BaseAdapter):
         url = f"{self._base_url}/{index}/_doc/{doc_id}"
         with tracer.start_as_current_span("opensearch.index_document"):
             try:
-                resp = await self._retry_request(
-                    "PUT", url, json=document, headers=self._headers
-                )
+                resp = await self._retry_request("PUT", url, json=document, headers=self._headers)
                 resp.raise_for_status()
                 await self._breaker.record_success()
                 return True

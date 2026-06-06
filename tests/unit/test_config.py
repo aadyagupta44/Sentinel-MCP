@@ -1,0 +1,54 @@
+"""Settings.validate_runtime() — production safety guard."""
+
+from sentinel.config import Settings
+
+
+def _settings(**over):
+    base = {
+        "environment": "production",
+        "policy_enforcement": True,
+        "mock_adapters": False,
+        "database_url": "postgresql+asyncpg://u:p@db.internal:5432/sentinel",
+        "keycloak_url": "https://sso.acme.com",
+        "mcp_transport": "stdio",
+    }
+    base.update(over)
+    return Settings(**base)
+
+
+def test_safe_production_config_has_no_problems():
+    assert _settings().validate_runtime() == []
+
+
+def test_dev_environment_is_never_blocked():
+    s = _settings(
+        environment="development",
+        policy_enforcement=False,
+        mock_adapters=True,
+        database_url="postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel",
+    )
+    assert s.validate_runtime() == []
+
+
+def test_production_rejects_policy_disabled():
+    problems = _settings(policy_enforcement=False).validate_runtime()
+    assert any("POLICY_ENFORCEMENT" in p for p in problems)
+
+
+def test_production_rejects_mock_adapters():
+    problems = _settings(mock_adapters=True).validate_runtime()
+    assert any("MOCK_ADAPTERS" in p for p in problems)
+
+
+def test_production_rejects_localhost_database():
+    problems = _settings(
+        database_url="postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel"
+    ).validate_runtime()
+    assert any("DATABASE_URL" in p for p in problems)
+
+
+def test_production_http_rejects_localhost_keycloak():
+    problems = _settings(
+        mcp_transport="http", keycloak_url="http://localhost:8080"
+    ).validate_runtime()
+    assert any("KEYCLOAK_URL" in p for p in problems)

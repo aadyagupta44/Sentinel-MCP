@@ -1,6 +1,5 @@
 """Shared pytest fixtures for all tests."""
 
-import asyncio
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -14,10 +13,12 @@ from sentinel.main import app
 
 # ── Settings override for tests ───────────────────────────────────────────────
 
+
 @pytest.fixture(scope="session", autouse=True)
-def test_settings(monkeypatch=None):
+def test_settings():
     """Ensure test settings are used throughout the session."""
     import os
+
     os.environ.setdefault("ENVIRONMENT", "test")
     os.environ.setdefault("MOCK_ADAPTERS", "true")
     os.environ.setdefault("POLICY_ENFORCEMENT", "false")
@@ -60,9 +61,75 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 
 # ── HTTP test client ──────────────────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
 async def http_client() -> AsyncGenerator[AsyncClient, None]:
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
+
+
+# ── Auth / JWT test helpers (Phase 5) ─────────────────────────────────────────
+
+_TEST_KID = "sentinel-test-key-1"
+
+
+@pytest.fixture(scope="session")
+def rsa_key():
+    """A session RSA keypair + matching JWK for signing/validating test JWTs."""
+    import json
+
+    import jwt as pyjwt
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    jwk = json.loads(pyjwt.algorithms.RSAAlgorithm.to_jwk(key.public_key()))
+    jwk.update({"kid": _TEST_KID, "alg": "RS256", "use": "sig"})
+    return {"private_pem": private_pem, "jwk": jwk, "kid": _TEST_KID}
+
+
+@pytest.fixture
+def jwks_response(rsa_key):
+    return {"keys": [rsa_key["jwk"]]}
+
+
+@pytest.fixture
+def make_jwt(rsa_key):
+    """Factory: build a signed Keycloak-style access token for tests."""
+    import time
+
+    import jwt as pyjwt
+
+    from sentinel.config import get_settings
+
+    def _make(*, sub="u-123", roles=("analyst",), scope="soc:read", **overrides):
+        s = get_settings()
+        now = int(time.time())
+        claims = {
+            "sub": sub,
+            "iss": s.oidc_issuer,
+            "iat": now,
+            "exp": now + 300,
+            "realm_access": {"roles": list(roles)},
+            "scope": scope,
+            "preferred_username": sub,
+        }
+        claims.update(overrides)
+        return pyjwt.encode(
+            claims, rsa_key["private_pem"], algorithm="RS256", headers={"kid": rsa_key["kid"]}
+        )
+
+    return _make
+
+
+@pytest.fixture
+def reset_jwt_validator(monkeypatch):
+    """Reset the cached JWTValidator singleton so JWKS is re-fetched (via respx)."""
+    monkeypatch.setattr("sentinel.auth.jwt._validator", None)
+    yield
+    monkeypatch.setattr("sentinel.auth.jwt._validator", None)

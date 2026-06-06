@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     keycloak_url: str = "http://localhost:8080"
     keycloak_realm: str = "sentinel"
     oauth_client_id: str = "claude-desktop"
+    oauth_client_secret: str = ""  # empty for public PKCE clients
+    oauth_redirect_uri: str = "http://localhost:8000/auth/callback"
+    oauth_audience: str = ""  # if set, JWT `aud` is verified against it
+    oauth_default_scopes: str = "openid profile soc:read soc:write"
 
     # ── OpenSearch ────────────────────────────────────────────────────────────
     opensearch_url: str = "http://localhost:9200"
@@ -122,6 +126,46 @@ class Settings(BaseSettings):
     @property
     def has_anthropic(self) -> bool:
         return bool(self.anthropic_api_key) and self.report_narrative_enabled
+
+    # ── OIDC / Keycloak endpoints ─────────────────────────────────────────────
+    @property
+    def keycloak_realm_url(self) -> str:
+        return f"{self.keycloak_url.rstrip('/')}/realms/{self.keycloak_realm}"
+
+    @property
+    def oidc_issuer(self) -> str:
+        return self.keycloak_realm_url
+
+    @property
+    def oidc_authorize_endpoint(self) -> str:
+        return f"{self.keycloak_realm_url}/protocol/openid-connect/auth"
+
+    @property
+    def oidc_token_endpoint(self) -> str:
+        return f"{self.keycloak_realm_url}/protocol/openid-connect/token"
+
+    @property
+    def oidc_jwks_uri(self) -> str:
+        return f"{self.keycloak_realm_url}/protocol/openid-connect/certs"
+
+    # ── Startup validation ────────────────────────────────────────────────────
+    def validate_runtime(self) -> list[str]:
+        """Return fatal misconfigurations for the current environment.
+
+        Production must not run with authorization disabled, mock adapters on, or
+        placeholder secrets — surfacing these at boot instead of at first use.
+        """
+        problems: list[str] = []
+        if self.is_production:
+            if not self.policy_enforcement:
+                problems.append("POLICY_ENFORCEMENT must be true in production")
+            if self.mock_adapters:
+                problems.append("MOCK_ADAPTERS must be false in production")
+            if "localhost" in self.database_url:
+                problems.append("DATABASE_URL still points at localhost in production")
+            if self.mcp_transport == "http" and "localhost" in self.keycloak_url:
+                problems.append("KEYCLOAK_URL still points at localhost in production HTTP mode")
+        return problems
 
 
 @lru_cache

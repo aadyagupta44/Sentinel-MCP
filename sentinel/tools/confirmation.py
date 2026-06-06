@@ -16,8 +16,9 @@ an in-memory dict when Postgres is unavailable (dev/test without Docker).
 
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import structlog
 
@@ -40,7 +41,7 @@ async def create_proposal(
     """Create a pending action proposal. Returns a ProposedAction dict."""
     settings = get_settings()
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=settings.pending_action_ttl_seconds)
+    expires_at = datetime.now(UTC) + timedelta(seconds=settings.pending_action_ttl_seconds)
 
     proposal = {
         "action_type": tool_name,
@@ -61,13 +62,13 @@ async def create_proposal(
     # Try to persist to Postgres; fall back to in-memory
     stored = False
     try:
-        from sentinel.db.session import get_session_factory
         from sentinel.db.models import PendingAction
+        from sentinel.db.session import get_session_factory
 
         factory = get_session_factory()
-        async with factory() as session:
-            async with session.begin():
-                session.add(PendingAction(
+        async with factory() as session, session.begin():
+            session.add(
+                PendingAction(
                     token=token,
                     tool_name=tool_name,
                     analyst_id=analyst_id,
@@ -75,12 +76,29 @@ async def create_proposal(
                     proposal=proposal,
                     expires_at=expires_at,
                     executed=False,
-                ))
+                )
+            )
         stored = True
     except Exception as exc:
         logger.warning("pending_action_db_unavailable", error=str(exc), tool=tool_name)
 
     if not stored:
+        # The in-memory store is process-local — it does not survive a restart
+        # and is not shared across workers, so it cannot uphold the two-step
+        # guarantee in a multi-worker deployment. In production, refuse rather
+        # than silently degrade; in dev/test, fall back loudly.
+        if settings.is_production:
+            logger.error("pending_action_store_unavailable_in_production", tool=tool_name)
+            return {
+                "error": (
+                    "Confirmation store unavailable — Postgres is required for write-tool "
+                    "confirmation in production. Action not proposed."
+                ),
+                "code": "STORAGE_UNAVAILABLE",
+            }
+        logger.warning(
+            "pending_action_in_memory_fallback", tool=tool_name, environment=settings.environment
+        )
         _mem_store[token] = {
             "token": token,
             "tool_name": tool_name,
@@ -102,7 +120,7 @@ async def execute_confirmed(
     executor: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
 ) -> dict[str, Any]:
     """Validate token and execute the confirmed action."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Try Postgres first, fall back to in-memory
     pending = await _load_pending(tool_name, confirmation_token)
@@ -118,7 +136,7 @@ async def execute_confirmed(
     if isinstance(expires_at, str):
         expires_at = datetime.fromisoformat(expires_at)
     if expires_at and expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
 
     if expires_at and now > expires_at:
         await _mark_expired(confirmation_token)
@@ -147,10 +165,14 @@ async def execute_confirmed(
     try:
         result = await executor(pending["parameters"])
         await _mark_executed(confirmation_token)
-        logger.info("confirmed_action_executed", tool=tool_name, analyst=analyst_id, trace_id=trace_id)
+        logger.info(
+            "confirmed_action_executed", tool=tool_name, analyst=analyst_id, trace_id=trace_id
+        )
         return {
             "action_type": tool_name,
-            "target": pending["parameters"].get("hostname") or pending["parameters"].get("email") or pending["parameters"].get("ip_address", ""),
+            "target": pending["parameters"].get("hostname")
+            or pending["parameters"].get("email")
+            or pending["parameters"].get("ip_address", ""),
             "executed_at": now.isoformat(),
             "analyst_id": analyst_id,
             "trace_id": trace_id,
@@ -163,17 +185,17 @@ async def execute_confirmed(
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+
 async def _load_pending(tool_name: str, token: str) -> dict[str, Any] | None:
     try:
         from sqlalchemy import select
-        from sentinel.db.session import get_session_factory
+
         from sentinel.db.models import PendingAction
+        from sentinel.db.session import get_session_factory
 
         factory = get_session_factory()
         async with factory() as session:
-            row = await session.scalar(
-                select(PendingAction).where(PendingAction.token == token)
-            )
+            row = await session.scalar(select(PendingAction).where(PendingAction.token == token))
             if row:
                 return {
                     "token": row.token,
@@ -184,7 +206,7 @@ async def _load_pending(tool_name: str, token: str) -> dict[str, Any] | None:
                     "expires_at": row.expires_at,
                     "executed": row.executed,
                 }
-    except Exception:
+    except Exception:  # noqa: S110  # DB unavailable → fall back to in-memory store
         pass
     return _mem_store.get(token)
 
@@ -192,19 +214,17 @@ async def _load_pending(tool_name: str, token: str) -> dict[str, Any] | None:
 async def _mark_executed(token: str) -> None:
     try:
         from sqlalchemy import update
-        from sentinel.db.session import get_session_factory
+
         from sentinel.db.models import PendingAction
+        from sentinel.db.session import get_session_factory
 
         factory = get_session_factory()
-        async with factory() as session:
-            async with session.begin():
-                await session.execute(
-                    update(PendingAction)
-                    .where(PendingAction.token == token)
-                    .values(executed=True)
-                )
+        async with factory() as session, session.begin():
+            await session.execute(
+                update(PendingAction).where(PendingAction.token == token).values(executed=True)
+            )
         return
-    except Exception:
+    except Exception:  # noqa: S110  # DB unavailable → fall back to in-memory store
         pass
     if token in _mem_store:
         _mem_store[token]["executed"] = True

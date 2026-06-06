@@ -51,7 +51,17 @@ class AlienVaultAdapter(BaseAdapter):
 
     async def lookup_ip(self, ip: str) -> dict[str, Any]:
         if self.is_mock:
-            return _MOCK_DATA.get(ip, {"general": {"indicator": ip, "pulse_count": 0, "malware_families": [], "tags": []}})
+            return _MOCK_DATA.get(
+                ip,
+                {
+                    "general": {
+                        "indicator": ip,
+                        "pulse_count": 0,
+                        "malware_families": [],
+                        "tags": [],
+                    }
+                },
+            )
         if not self._enabled:
             return {}
 
@@ -59,7 +69,14 @@ class AlienVaultAdapter(BaseAdapter):
 
     async def lookup_domain(self, domain: str) -> dict[str, Any]:
         if self.is_mock:
-            return {"general": {"indicator": domain, "pulse_count": 0, "malware_families": [], "tags": []}}
+            return {
+                "general": {
+                    "indicator": domain,
+                    "pulse_count": 0,
+                    "malware_families": [],
+                    "tags": [],
+                }
+            }
         if not self._enabled:
             return {}
 
@@ -67,7 +84,17 @@ class AlienVaultAdapter(BaseAdapter):
 
     async def lookup_hash(self, hash_value: str) -> dict[str, Any]:
         if self.is_mock:
-            return _MOCK_DATA.get(hash_value.lower(), {"general": {"indicator": hash_value, "pulse_count": 0, "malware_families": [], "tags": []}})
+            return _MOCK_DATA.get(
+                hash_value.lower(),
+                {
+                    "general": {
+                        "indicator": hash_value,
+                        "pulse_count": 0,
+                        "malware_families": [],
+                        "tags": [],
+                    }
+                },
+            )
         if not self._enabled:
             return {}
 
@@ -75,11 +102,14 @@ class AlienVaultAdapter(BaseAdapter):
 
     async def lookup_url(self, url: str) -> dict[str, Any]:
         if self.is_mock:
-            return {"general": {"indicator": url, "pulse_count": 0, "malware_families": [], "tags": []}}
+            return {
+                "general": {"indicator": url, "pulse_count": 0, "malware_families": [], "tags": []}
+            }
         if not self._enabled:
             return {}
 
         import urllib.parse
+
         encoded = urllib.parse.quote(url, safe="")
         return await self._lookup(f"{_BASE_URL}/url/{encoded}/general", url)
 

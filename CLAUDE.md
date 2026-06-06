@@ -232,9 +232,12 @@ sentinel-soc/
 │   │   └── test_tools/              # Tool tests with mock adapters
 │   └── integration/
 │       └── test_mcp_protocol.py     # MCP compliance tests
-├── scripts/
-│   ├── testing_agent.py             # Adversarial tester (486 payloads)
-│   └── doc_agent.py                 # Auto-generates docs after each phase
+├── .claude/
+│   ├── skills/
+│   │   ├── phase-docs/SKILL.md       # Skill: write phase journey doc + update README
+│   │   └── phase-test/SKILL.md       # Skill: find where the code breaks / user-facing problems
+│   └── agents/
+│       └── phase-runner.md           # Orchestrator: runs both skills after a phase completes
 ├── docker-compose.yml               # Full stack (Postgres, Redis, OpenSearch, OPA, Keycloak)
 ├── pyproject.toml                   # Dependencies + project metadata
 ├── .env.example                     # Template for env vars
@@ -269,8 +272,6 @@ sentinel-soc/
 - 4 MCP Resources (sentinel:// URIs)
 - 3 MCP Prompts (investigation playbooks)
 - 131 unit + integration tests, 85% coverage
-- Adversarial testing agent (486 payload tests, 0 issues)
-- Auto-doc generation via doc_agent.py script
 
 **Key Files:** `sentinel/tools/`, `sentinel/mcp/`, `sentinel/tools/mock_data.py`, `sentinel/tools/confirmation.py`
 
@@ -415,19 +416,19 @@ pytest tests/integration/ -xvs
 pytest tests/unit/test_tools/test_alerts.py -xvs
 ```
 
-### 5. Run Adversarial Testing (Phase 2 validation)
-```bash
-python scripts/testing_agent.py
-# Runs 486 payload tests against 14 tool schemas
-# Expected: 0 failures
-```
+### 5. After a Phase Completes — Run the Phase Workflow
+After finishing a development phase, run the **phase-runner** orchestrator agent
+(or invoke the two skills directly). It runs:
 
-### 6. Generate Docs (After Phase Completion)
-```bash
-python scripts/doc_agent.py
-# Auto-generates docs/phases/phaseN.md
-# Updates CHANGELOG.md and README.md
-```
+1. **`/phase-test`** — analyses everything built so far for where the code can
+   break and what problems a user might hit; writes a findings report to
+   `docs/test-reports/phaseN.md`.
+2. **`/phase-docs`** — writes the phase journey (what was built, how, architecture,
+   key decisions) to `docs/phases/phaseN.md` and updates `README.md` + `CHANGELOG.md`.
+
+These replace the old `scripts/testing_agent.py` and `scripts/doc_agent.py`
+(both removed). The skills live in `.claude/skills/`, the orchestrator in
+`.claude/agents/phase-runner.md`.
 
 ### 7. Start MCP Server (for Claude Desktop)
 ```bash
@@ -533,12 +534,9 @@ docker-compose restart postgresql
    - Target: 231+ tests passing (62 + 131 + 100)
    - Target: 85%+ coverage
 
-3. **Run adversarial testing agent** on adapter input schemas
-   - Verify no SQL injection, path traversal, etc.
-
-4. **Auto-generate Phase 3 documentation**
-   - `docs/phases/phase3.md` with details
-   - Update CHANGELOG.md and README.md
+3. **Run the `phase-runner` agent for Phase 3**
+   - `/phase-test` — find breakages / user-facing problems → `docs/test-reports/phase3.md`
+   - `/phase-docs` — write `docs/phases/phase3.md`, update README.md + CHANGELOG.md
 
 5. **Start Phase 4** (implement stubbed read tools)
 

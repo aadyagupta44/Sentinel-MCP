@@ -8,7 +8,6 @@ from typing import Any
 
 from sentinel.mcp.middleware import run_middleware
 from sentinel.mcp.server import mcp
-from sentinel.tools import mock_data as mock
 
 
 async def _execute_device_processes(args: dict[str, Any]) -> dict[str, Any]:
@@ -18,7 +17,9 @@ async def _execute_device_processes(args: dict[str, Any]) -> dict[str, Any]:
     if not hostname:
         return {"error": "hostname is required", "code": "MISSING_PARAMETER"}
 
-    processes = mock.device_processes(hostname, window)
+    from sentinel.adapters.wazuh import get_wazuh_adapter
+
+    processes = await get_wazuh_adapter().get_processes(hostname, window)
     return {
         "hostname": hostname,
         "time_window_minutes": window,
@@ -55,7 +56,9 @@ async def _execute_network_connections(args: dict[str, Any]) -> dict[str, Any]:
     if not hostname:
         return {"error": "hostname is required", "code": "MISSING_PARAMETER"}
 
-    connections = mock.network_connections(hostname, window)
+    from sentinel.adapters.wazuh import get_wazuh_adapter
+
+    connections = await get_wazuh_adapter().get_network_connections(hostname, window)
     return {
         "hostname": hostname,
         "time_window_minutes": window,

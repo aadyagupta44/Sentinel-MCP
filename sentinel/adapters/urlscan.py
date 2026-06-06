@@ -54,7 +54,11 @@ class URLScanAdapter(BaseAdapter):
     async def scan(self, url: str, visibility: str = "private") -> dict[str, Any]:
         """Submit a URL for scanning. Returns scan UUID."""
         if self.is_mock:
-            return {"uuid": "mock-scan-uuid", "result": "https://urlscan.io/result/mock-scan-uuid/", "visibility": visibility}
+            return {
+                "uuid": "mock-scan-uuid",
+                "result": "https://urlscan.io/result/mock-scan-uuid/",
+                "visibility": visibility,
+            }
         if not self._enabled:
             return {}
 
@@ -83,7 +87,10 @@ class URLScanAdapter(BaseAdapter):
     async def get_result(self, uuid: str) -> dict[str, Any]:
         """Retrieve completed scan result by UUID."""
         if self.is_mock:
-            return {"task": {"uuid": uuid}, "verdicts": {"overall": {"malicious": False, "score": 0}}}
+            return {
+                "task": {"uuid": uuid},
+                "verdicts": {"overall": {"malicious": False, "score": 0}},
+            }
         if not self._enabled:
             return {}
 

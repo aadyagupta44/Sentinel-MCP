@@ -39,6 +39,7 @@ class TestCircuitBreaker:
 
     async def test_transitions_to_half_open_after_recovery_timeout(self):
         import time
+
         cb = CircuitBreaker(failure_threshold=1, recovery_timeout=0.01, name="test")
         await cb.record_failure()
         assert cb.is_open()
@@ -71,9 +72,7 @@ class TestBaseAdapterCircuitBreaker:
 
     @respx.mock
     async def test_successful_call_resets_failure_count(self):
-        respx.get("http://example.com/api").mock(
-            return_value=Response(200, json={"status": "ok"})
-        )
+        respx.get("http://example.com/api").mock(return_value=Response(200, json={"status": "ok"}))
         adapter = ConcreteAdapter()
         # Add some failures below threshold
         for _ in range(3):
@@ -88,12 +87,13 @@ class TestBaseAdapterCircuitBreaker:
     @respx.mock
     async def test_http_error_increments_failure_count(self):
         from httpx import NetworkError
+
         respx.get("http://bad-host.invalid/api").mock(side_effect=NetworkError("refused"))
 
         adapter = ConcreteAdapter()
         initial_failures = adapter._breaker._failure_count
 
-        with pytest.raises(Exception):
+        with pytest.raises(NetworkError):
             await adapter.fetch("http://bad-host.invalid/api")
 
         assert adapter._breaker._failure_count > initial_failures
@@ -103,6 +103,7 @@ class TestBaseAdapterCircuitBreaker:
 class TestCircuitBreakerConcurrency:
     async def test_concurrent_failures_dont_exceed_threshold(self):
         import asyncio
+
         cb = CircuitBreaker(failure_threshold=5, name="concurrent_test")
 
         # Fire 10 concurrent failures
@@ -110,3 +111,66 @@ class TestCircuitBreakerConcurrency:
 
         # State should be OPEN (not some weird intermediate state)
         assert cb.state == CircuitState.OPEN
+
+    async def test_reset_clears_failures_and_closes(self):
+        cb = CircuitBreaker(failure_threshold=2, name="reset_test")
+        for _ in range(2):
+            await cb.record_failure()
+        assert cb.is_open()
+        cb.reset()
+        assert cb.state == CircuitState.CLOSED
+        assert cb._failure_count == 0
+
+
+class TestBaseAdapterContextManager:
+    async def test_async_context_manager_enters_and_closes(self):
+        async with ConcreteAdapter() as adapter:
+            assert isinstance(adapter, ConcreteAdapter)
+            assert adapter._client.is_closed is False
+        # __aexit__ must have closed the underlying client
+        assert adapter._client.is_closed is True
+
+
+class TestBreakerOnHttpErrors:
+    async def test_5xx_responses_open_the_breaker(self, respx_mock):
+        respx_mock.get("http://svc.test/api").mock(return_value=Response(500, json={}))
+        adapter = ConcreteAdapter()
+        for _ in range(5):
+            await adapter.fetch("http://svc.test/api")  # graceful — returns body
+        assert adapter._breaker.is_open()
+        with pytest.raises(CircuitOpenError):
+            await adapter.fetch("http://svc.test/api")
+        await adapter.close()
+
+    async def test_429_responses_open_the_breaker(self, respx_mock):
+        respx_mock.get("http://svc.test/api").mock(return_value=Response(429, json={}))
+        adapter = ConcreteAdapter()
+        for _ in range(5):
+            await adapter.fetch("http://svc.test/api")
+        assert adapter._breaker.is_open()
+        await adapter.close()
+
+    async def test_2xx_and_404_do_not_open_the_breaker(self, respx_mock):
+        respx_mock.get("http://svc.test/ok").mock(return_value=Response(200, json={"ok": True}))
+        respx_mock.get("http://svc.test/missing").mock(return_value=Response(404, json={}))
+        adapter = ConcreteAdapter()
+        for _ in range(5):
+            await adapter.fetch("http://svc.test/ok")
+            await adapter.fetch("http://svc.test/missing")
+        assert adapter._breaker.is_open() is False
+        await adapter.close()
+
+
+class TestStateReadIsPure:
+    def test_state_read_does_not_mutate_underlying_state(self):
+        import time as _time
+
+        cb = CircuitBreaker(failure_threshold=1, recovery_timeout=0.01, name="pure")
+        cb._failure_count = 1
+        cb._state = CircuitState.OPEN
+        cb._last_failure_time = _time.monotonic()
+        _time.sleep(0.02)
+        # Reading reports HALF_OPEN once the window elapses…
+        assert cb.state == CircuitState.HALF_OPEN
+        # …but does NOT mutate the stored state (no side effect in the getter).
+        assert cb._state == CircuitState.OPEN

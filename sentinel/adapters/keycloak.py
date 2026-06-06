@@ -7,7 +7,7 @@ Self-hosted — Keycloak runs in docker-compose. Free, no external dependency.
 Never returns raw Keycloak internal IDs or tokens in tool responses.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sentinel.adapters.base import BaseAdapter, CircuitOpenError
@@ -26,7 +26,7 @@ class KeycloakAdapter(BaseAdapter):
         self._admin_url = f"{self._base_url}/admin/realms/{self._realm}"
         self._token_url = f"{self._base_url}/realms/master/protocol/openid-connect/token"
         self._access_token: str | None = None
-        self._token_expires: datetime = datetime.now(timezone.utc)
+        self._token_expires: datetime = datetime.now(UTC)
 
     async def get_user(self, email: str) -> dict[str, Any] | None:
         if self.is_mock:
@@ -74,7 +74,7 @@ class KeycloakAdapter(BaseAdapter):
         if self._breaker.is_open():
             raise CircuitOpenError(self.adapter_name)
 
-        since = datetime.now(timezone.utc) - timedelta(days=days)
+        since = datetime.now(UTC) - timedelta(days=days)
         try:
             resp = await self._call(
                 "GET",
@@ -132,7 +132,7 @@ class KeycloakAdapter(BaseAdapter):
 
     async def _get_token(self) -> str | None:
         """Obtain a Keycloak admin token using client credentials."""
-        if self._access_token and datetime.now(timezone.utc) < self._token_expires:
+        if self._access_token and datetime.now(UTC) < self._token_expires:
             return self._access_token
 
         settings = get_settings()
@@ -149,7 +149,7 @@ class KeycloakAdapter(BaseAdapter):
             data = resp.json()
             self._access_token = data.get("access_token")
             expires_in = data.get("expires_in", 300)
-            self._token_expires = datetime.now(timezone.utc) + timedelta(seconds=expires_in - 30)
+            self._token_expires = datetime.now(UTC) + timedelta(seconds=expires_in - 30)
             return self._access_token
         except Exception as exc:
             self._log.warning("keycloak_token_failed", error=str(exc))
@@ -188,7 +188,7 @@ class KeycloakAdapter(BaseAdapter):
     def _sanitize_event(event: dict[str, Any]) -> dict[str, Any]:
         details = event.get("details", {})
         return {
-            "timestamp": datetime.fromtimestamp(event.get("time", 0) / 1000, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(event.get("time", 0) / 1000, tz=UTC).isoformat(),
             "ip_address": event.get("ipAddress", ""),
             "device": details.get("auth_method", "Unknown"),
             "success": event.get("type") == "LOGIN",

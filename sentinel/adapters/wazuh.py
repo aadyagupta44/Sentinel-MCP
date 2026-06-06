@@ -8,7 +8,7 @@ Wraps: list agents, search process events, search network events,
        isolate agent, kill process via active response.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sentinel.adapters.base import BaseAdapter, CircuitOpenError
@@ -33,7 +33,9 @@ class WazuhAdapter(BaseAdapter):
     def _is_available(self) -> bool:
         return self.is_mock or self._enabled
 
-    async def get_processes(self, hostname: str, time_window_minutes: int = 60) -> list[dict[str, Any]]:
+    async def get_processes(
+        self, hostname: str, time_window_minutes: int = 60
+    ) -> list[dict[str, Any]]:
         if self.is_mock:
             return mock.device_processes(hostname, time_window_minutes)
         if not self._enabled:
@@ -43,14 +45,16 @@ class WazuhAdapter(BaseAdapter):
         if not agent_id:
             return []
 
-        since = datetime.now(timezone.utc) - timedelta(minutes=time_window_minutes)
+        since = datetime.now(UTC) - timedelta(minutes=time_window_minutes)
         return await self._search_events(
             agent_id=agent_id,
             event_type="process",
             since=since,
         )
 
-    async def get_network_connections(self, hostname: str, time_window_minutes: int = 60) -> list[dict[str, Any]]:
+    async def get_network_connections(
+        self, hostname: str, time_window_minutes: int = 60
+    ) -> list[dict[str, Any]]:
         if self.is_mock:
             return mock.network_connections(hostname, time_window_minutes)
         if not self._enabled:
@@ -60,7 +64,7 @@ class WazuhAdapter(BaseAdapter):
         if not agent_id:
             return []
 
-        since = datetime.now(timezone.utc) - timedelta(minutes=time_window_minutes)
+        since = datetime.now(UTC) - timedelta(minutes=time_window_minutes)
         return await self._search_events(
             agent_id=agent_id,
             event_type="network",
@@ -76,7 +80,10 @@ class WazuhAdapter(BaseAdapter):
 
         agent_id = await self._get_agent_id(hostname)
         if not agent_id:
-            return {"error": f"Agent not found for hostname '{hostname}'", "code": "AGENT_NOT_FOUND"}
+            return {
+                "error": f"Agent not found for hostname '{hostname}'",
+                "code": "AGENT_NOT_FOUND",
+            }
 
         if self._breaker.is_open():
             raise CircuitOpenError(self.adapter_name)
@@ -106,7 +113,10 @@ class WazuhAdapter(BaseAdapter):
 
         agent_id = await self._get_agent_id(hostname)
         if not agent_id:
-            return {"error": f"Agent not found for hostname '{hostname}'", "code": "AGENT_NOT_FOUND"}
+            return {
+                "error": f"Agent not found for hostname '{hostname}'",
+                "code": "AGENT_NOT_FOUND",
+            }
 
         if self._breaker.is_open():
             raise CircuitOpenError(self.adapter_name)
@@ -117,7 +127,11 @@ class WazuhAdapter(BaseAdapter):
                 f"{self._base_url}/active-response",
                 span_name="kill_process",
                 headers=self._headers,
-                json={"command": "kill-process", "arguments": [str(pid)], "alert": {"id": agent_id}},
+                json={
+                    "command": "kill-process",
+                    "arguments": [str(pid)],
+                    "alert": {"id": agent_id},
+                },
                 params={"agents_list": agent_id},
             )
             resp.raise_for_status()
@@ -146,7 +160,9 @@ class WazuhAdapter(BaseAdapter):
             self._log.warning("wazuh_get_agent_failed", error=str(exc), hostname=hostname)
             return None
 
-    async def _search_events(self, agent_id: str, event_type: str, since: datetime) -> list[dict[str, Any]]:
+    async def _search_events(
+        self, agent_id: str, event_type: str, since: datetime
+    ) -> list[dict[str, Any]]:
         if self._breaker.is_open():
             raise CircuitOpenError(self.adapter_name)
         try:

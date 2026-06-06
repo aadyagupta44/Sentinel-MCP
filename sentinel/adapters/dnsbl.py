@@ -49,7 +49,8 @@ class DNSBLAdapter:
         Returns:
             {
                 "listed": bool,
-                "zones": {"spamhaus_zen": {"listed": bool, "return_codes": [...], "meanings": [...]}},
+                "zones": {"spamhaus_zen": {"listed": bool, "return_codes": [...],
+                                           "meanings": [...]}},
                 "summary": str,
             }
         """

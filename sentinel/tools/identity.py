@@ -11,20 +11,25 @@ from sentinel.mcp.middleware import run_middleware
 from sentinel.mcp.server import mcp
 from sentinel.tools import mock_data as mock
 
-
 # ── user_context ──────────────────────────────────────────────────────────────
+
 
 async def _execute_user_context(args: dict[str, Any]) -> dict[str, Any]:
     email = str(args.get("email", "")).strip().lower()
     if not email or "@" not in email:
         return {"error": "Valid email address is required", "code": "INVALID_PARAMETER"}
 
-    user = mock.get_user(email)
+    from sentinel.adapters.keycloak import get_keycloak_adapter
+
+    user = await get_keycloak_adapter().get_user(email)
     if user is None:
         return {
             "error": f"User '{email}' not found",
             "code": "NOT_FOUND",
-            "hint": "Try alice.hr@acmecorp.com, bob.finance@acmecorp.com, or charlie.devops@acmecorp.com",
+            "hint": (
+                "Try alice.hr@acmecorp.com, bob.finance@acmecorp.com, "
+                "or charlie.devops@acmecorp.com"
+            ),
         }
     return user
 
@@ -47,6 +52,7 @@ async def user_context(email: str) -> dict[str, Any]:
 
 # ── recent_logins ─────────────────────────────────────────────────────────────
 
+
 async def _execute_recent_logins(args: dict[str, Any]) -> dict[str, Any]:
     email = str(args.get("email", "")).strip().lower()
     days = max(1, min(int(args.get("days", 7)), 90))
@@ -54,7 +60,9 @@ async def _execute_recent_logins(args: dict[str, Any]) -> dict[str, Any]:
     if not email or "@" not in email:
         return {"error": "Valid email address is required", "code": "INVALID_PARAMETER"}
 
-    logins = mock.get_logins(email, days)
+    from sentinel.adapters.keycloak import get_keycloak_adapter
+
+    logins = await get_keycloak_adapter().get_login_events(email, days)
     return {
         "email": email,
         "days": days,
@@ -82,6 +90,7 @@ async def recent_logins(email: str, days: int = 7) -> dict[str, Any]:
 
 # ── risk_score_user ───────────────────────────────────────────────────────────
 
+
 async def _execute_risk_score_user(args: dict[str, Any]) -> dict[str, Any]:
     email = str(args.get("email", "")).strip().lower()
     if not email or "@" not in email:
@@ -107,6 +116,4 @@ async def risk_score_user(email: str) -> dict[str, Any]:
     Args:
         email: User's work email address
     """
-    return await run_middleware(
-        "risk_score_user", {"email": email}, _execute_risk_score_user
-    )
+    return await run_middleware("risk_score_user", {"email": email}, _execute_risk_score_user)

@@ -13,29 +13,53 @@ from typing import Any
 from sentinel.adapters.base import BaseAdapter, CircuitOpenError
 
 _BASE_URL = "http://ip-api.com/json"
-_FIELDS = "status,message,country,countryCode,region,city,zip,lat,lon,timezone,isp,org,as,asname,query,proxy,hosting,mobile"
+_FIELDS = (
+    "status,message,country,countryCode,region,city,zip,lat,lon,timezone,"
+    "isp,org,as,asname,query,proxy,hosting,mobile"
+)
 
 _MOCK_DATA: dict[str, dict[str, Any]] = {
     "185.220.101.34": {
-        "status": "success", "country": "Germany", "countryCode": "DE",
-        "city": "Frankfurt am Main", "isp": "netzbetrieb GmbH",
-        "org": "AS58220 netzbetrieb GmbH", "as": "AS58220",
-        "asname": "AS58220", "query": "185.220.101.34",
-        "proxy": True, "hosting": True, "mobile": False,
+        "status": "success",
+        "country": "Germany",
+        "countryCode": "DE",
+        "city": "Frankfurt am Main",
+        "isp": "netzbetrieb GmbH",
+        "org": "AS58220 netzbetrieb GmbH",
+        "as": "AS58220",
+        "asname": "AS58220",
+        "query": "185.220.101.34",
+        "proxy": True,
+        "hosting": True,
+        "mobile": False,
     },
     "91.108.4.51": {
-        "status": "success", "country": "Netherlands", "countryCode": "NL",
-        "city": "Amsterdam", "isp": "LeaseWeb Netherlands B.V.",
-        "org": "AS60781 LeaseWeb Netherlands B.V.", "as": "AS60781",
-        "asname": "AS60781", "query": "91.108.4.51",
-        "proxy": True, "hosting": True, "mobile": False,
+        "status": "success",
+        "country": "Netherlands",
+        "countryCode": "NL",
+        "city": "Amsterdam",
+        "isp": "LeaseWeb Netherlands B.V.",
+        "org": "AS60781 LeaseWeb Netherlands B.V.",
+        "as": "AS60781",
+        "asname": "AS60781",
+        "query": "91.108.4.51",
+        "proxy": True,
+        "hosting": True,
+        "mobile": False,
     },
     "8.8.8.8": {
-        "status": "success", "country": "United States", "countryCode": "US",
-        "city": "Mountain View", "isp": "Google LLC",
-        "org": "AS15169 Google LLC", "as": "AS15169",
-        "asname": "AS15169", "query": "8.8.8.8",
-        "proxy": False, "hosting": True, "mobile": False,
+        "status": "success",
+        "country": "United States",
+        "countryCode": "US",
+        "city": "Mountain View",
+        "isp": "Google LLC",
+        "org": "AS15169 Google LLC",
+        "as": "AS15169",
+        "asname": "AS15169",
+        "query": "8.8.8.8",
+        "proxy": False,
+        "hosting": True,
+        "mobile": False,
     },
 }
 
@@ -47,8 +71,16 @@ class IPApiAdapter(BaseAdapter):
         if self.is_mock:
             return _MOCK_DATA.get(
                 ip,
-                {"status": "success", "query": ip, "country": "Unknown",
-                 "countryCode": "XX", "org": "", "as": "", "proxy": False, "hosting": False},
+                {
+                    "status": "success",
+                    "query": ip,
+                    "country": "Unknown",
+                    "countryCode": "XX",
+                    "org": "",
+                    "as": "",
+                    "proxy": False,
+                    "hosting": False,
+                },
             )
 
         if self._breaker.is_open():
