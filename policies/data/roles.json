@@ -1,0 +1,16 @@
+{
+  "roles": {
+    "analyst": {
+      "description": "Standard SOC analyst — read-only access to all investigation tools",
+      "can_use_write_tools": false
+    },
+    "senior_analyst": {
+      "description": "Senior SOC analyst — full access including write/action tools",
+      "can_use_write_tools": true
+    },
+    "admin": {
+      "description": "SOC administrator — unrestricted access",
+      "can_use_write_tools": true
+    }
+  }
+}

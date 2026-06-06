@@ -1,0 +1,62 @@
+{
+  "realm": "sentinel",
+  "enabled": true,
+  "displayName": "Sentinel SOC",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "clients": [
+    {
+      "clientId": "claude-desktop",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "redirectUris": [
+        "http://localhost:*",
+        "https://claude.ai/*"
+      ],
+      "webOrigins": ["+"]
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "analyst", "description": "Standard SOC analyst — read-only tools" },
+      { "name": "senior_analyst", "description": "Senior analyst — includes write/action tools" },
+      { "name": "admin", "description": "SOC administrator — unrestricted access" }
+    ]
+  },
+  "users": [
+    {
+      "username": "analyst",
+      "email": "analyst@acmecorp.com",
+      "enabled": true,
+      "firstName": "Alice",
+      "lastName": "Analyst",
+      "credentials": [{ "type": "password", "value": "analyst123", "temporary": false }],
+      "realmRoles": ["analyst"]
+    },
+    {
+      "username": "senior",
+      "email": "senior@acmecorp.com",
+      "enabled": true,
+      "firstName": "Sam",
+      "lastName": "Senior",
+      "credentials": [{ "type": "password", "value": "senior123", "temporary": false }],
+      "realmRoles": ["senior_analyst"]
+    },
+    {
+      "username": "admin",
+      "email": "admin@acmecorp.com",
+      "enabled": true,
+      "firstName": "Adam",
+      "lastName": "Admin",
+      "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
+      "realmRoles": ["admin"]
+    }
+  ]
+}

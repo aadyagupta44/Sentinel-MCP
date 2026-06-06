@@ -1,0 +1,26 @@
+[
+  {
+    "indicator": "185.220.101.34",
+    "type": "ip",
+    "expected_verdict": "malicious",
+    "sources": ["feodotracker", "abuseipdb"]
+  },
+  {
+    "indicator": "44d88612fea8a8f36de82e1278abb02f",
+    "type": "hash",
+    "expected_verdict": "malicious",
+    "sources": ["malwarebazaar"]
+  },
+  {
+    "indicator": "8.8.8.8",
+    "type": "ip",
+    "expected_verdict": "clean",
+    "sources": []
+  },
+  {
+    "indicator": "malware-c2.example.com",
+    "type": "domain",
+    "expected_verdict": "unknown",
+    "sources": []
+  }
+]

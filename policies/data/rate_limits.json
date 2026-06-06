@@ -1,0 +1,20 @@
+{
+  "get_alert": 120,
+  "search_logs": 30,
+  "correlate_alerts": 10,
+  "similar_incidents": 30,
+  "enrich_ioc": 20,
+  "threat_hunt": 10,
+  "user_context": 60,
+  "recent_logins": 60,
+  "risk_score_user": 20,
+  "device_processes": 60,
+  "network_connections": 60,
+  "mitre_technique": 120,
+  "generate_incident_report": 5,
+  "weekly_summary": 5,
+  "isolate_device": 10,
+  "disable_user": 10,
+  "block_ip": 20,
+  "kill_process": 10
+}

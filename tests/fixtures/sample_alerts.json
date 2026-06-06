@@ -1,0 +1,24 @@
+[
+  {
+    "alert_id": "ALT-2026-001",
+    "severity": "high",
+    "rule_name": "Possible Credential Dumping via LSASS",
+    "affected_host": "LAPTOP-FINANCE-03",
+    "affected_user": "bob.finance@acmecorp.com",
+    "timestamp": "2026-06-02T08:14:33Z",
+    "status": "open",
+    "raw_log_references": ["log-001", "log-002"],
+    "mitre_techniques": ["T1003.001"]
+  },
+  {
+    "alert_id": "ALT-2026-002",
+    "severity": "critical",
+    "rule_name": "Impossible Travel Detected",
+    "affected_host": null,
+    "affected_user": "alice.hr@acmecorp.com",
+    "timestamp": "2026-06-02T09:02:11Z",
+    "status": "open",
+    "raw_log_references": ["log-003"],
+    "mitre_techniques": ["T1078"]
+  }
+]
