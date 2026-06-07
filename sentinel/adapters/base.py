@@ -11,7 +11,7 @@ Provides:
 
 import asyncio
 import time
-from abc import ABC, abstractmethod
+from abc import ABC
 from enum import Enum
 from typing import Any
 
@@ -57,9 +57,14 @@ class CircuitBreaker:
 
     @property
     def state(self) -> CircuitState:
-        if self._state == CircuitState.OPEN:
-            if time.monotonic() - self._last_failure_time > self.recovery_timeout:
-                self._state = CircuitState.HALF_OPEN
+        # Pure read — no side effects. Once the recovery window has elapsed an OPEN
+        # breaker is reported HALF_OPEN (allowing a probe call) without mutating
+        # internal state, so concurrent readers can't race a write here.
+        if (
+            self._state == CircuitState.OPEN
+            and time.monotonic() - self._last_failure_time > self.recovery_timeout
+        ):
+            return CircuitState.HALF_OPEN
         return self._state
 
     def is_open(self) -> bool:
@@ -89,7 +94,7 @@ class CircuitBreaker:
         self._state = CircuitState.CLOSED
 
 
-class BaseAdapter(ABC):
+class BaseAdapter(ABC):  # noqa: B024  # intentional base: subclasses add their own methods
     """Base class for all external service adapters."""
 
     adapter_name: str = "base"
@@ -130,7 +135,14 @@ class BaseAdapter(ABC):
             try:
                 resp = await self._retry_request(method, url, **kwargs)
                 span.set_attribute("http.status_code", resp.status_code)
-                await self._breaker.record_success()
+                # An up-but-erroring backend (5xx / 429) is a failure for the
+                # breaker too — not just transport errors — so a persistently
+                # failing upstream actually trips it. The response is still
+                # returned so callers keep their own status handling.
+                if resp.status_code >= 500 or resp.status_code == 429:
+                    await self._breaker.record_failure()
+                else:
+                    await self._breaker.record_success()
                 return resp
             except Exception as exc:
                 span.record_exception(exc)

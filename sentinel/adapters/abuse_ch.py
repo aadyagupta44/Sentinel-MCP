@@ -13,13 +13,12 @@ No API key required. Refreshes every ABUSE_CH_REFRESH_INTERVAL_MINUTES.
 import asyncio
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from opentelemetry import trace
 
 from sentinel.adapters.base import BaseAdapter
-from sentinel.config import get_settings
 
 tracer = trace.get_tracer("sentinel.adapters.abuse_ch")
 
@@ -64,7 +63,7 @@ class AbuseCHAdapter(BaseAdapter):
             self._bazaar_hashes = frozenset({"44d88612fea8a8f36de82e1278abb02f"})
             self._threatfox_iocs = frozenset({"185.220.101.34", "44d88612fea8a8f36de82e1278abb02f"})
             self._loaded = True
-            self._last_refresh = datetime.now(timezone.utc)
+            self._last_refresh = datetime.now(UTC)
             return
 
         tasks = [
@@ -83,7 +82,7 @@ class AbuseCHAdapter(BaseAdapter):
             self._bazaar_hashes = bazaar
 
         self._loaded = True
-        self._last_refresh = datetime.now(timezone.utc)
+        self._last_refresh = datetime.now(UTC)
         self._log.info(
             "abuse_ch_feeds_refreshed",
             feodo_count=len(self._feodo_ips),
@@ -113,6 +112,7 @@ class AbuseCHAdapter(BaseAdapter):
                 resp.raise_for_status()
                 hosts: set[str] = set()
                 import urllib.parse
+
                 for line in resp.text.splitlines():
                     line = line.strip()
                     if line and not line.startswith("#"):
@@ -120,7 +120,7 @@ class AbuseCHAdapter(BaseAdapter):
                             parsed = urllib.parse.urlparse(line)
                             if parsed.netloc:
                                 hosts.add(parsed.netloc.split(":")[0])
-                        except Exception:
+                        except Exception:  # noqa: S110  # skip unparseable feed lines
                             pass
                 return frozenset(hosts)
             except Exception as exc:
@@ -163,6 +163,16 @@ class AbuseCHAdapter(BaseAdapter):
         await self.ensure_loaded()
         return hash_value.lower() in self._bazaar_hashes
 
+    async def known_c2_ips(self) -> list[str]:
+        """Loaded FeodoTracker C2 IPs (used by the simulator's adversarial bots)."""
+        await self.ensure_loaded()
+        return sorted(self._feodo_ips)
+
+    async def known_malware_hashes(self) -> list[str]:
+        """Loaded MalwareBazaar sample hashes (used by the simulator)."""
+        await self.ensure_loaded()
+        return sorted(self._bazaar_hashes)
+
     # ── Per-indicator API lookups ─────────────────────────────────────────────
 
     async def lookup_url(self, url: str) -> dict[str, Any]:
@@ -171,9 +181,7 @@ class AbuseCHAdapter(BaseAdapter):
 
         with tracer.start_as_current_span("abuse_ch.lookup_url"):
             try:
-                resp = await self._retry_request(
-                    "POST", _URLHAUS_API + "url/", data={"url": url}
-                )
+                resp = await self._retry_request("POST", _URLHAUS_API + "url/", data={"url": url})
                 resp.raise_for_status()
                 await self._breaker.record_success()
                 return resp.json()
@@ -197,7 +205,8 @@ class AbuseCHAdapter(BaseAdapter):
         with tracer.start_as_current_span("abuse_ch.lookup_hash"):
             try:
                 resp = await self._retry_request(
-                    "POST", _BAZAAR_API,
+                    "POST",
+                    _BAZAAR_API,
                     json={"query": "get_file_info", "hash": hash_value},
                 )
                 resp.raise_for_status()
@@ -215,7 +224,8 @@ class AbuseCHAdapter(BaseAdapter):
         with tracer.start_as_current_span("abuse_ch.lookup_threatfox"):
             try:
                 resp = await self._retry_request(
-                    "POST", _THREATFOX_API,
+                    "POST",
+                    _THREATFOX_API,
                     json={"query": "search_ioc", "search_term": ioc},
                 )
                 resp.raise_for_status()

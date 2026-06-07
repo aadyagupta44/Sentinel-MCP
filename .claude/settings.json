@@ -1,17 +1,4 @@
 {
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '[sentinel] Bash tool used — run adversarial tests after phase completion: python scripts/testing_agent.py'"
-          }
-        ]
-      }
-    ]
-  },
   "env": {
     "ENVIRONMENT": "development",
     "MOCK_ADAPTERS": "true",

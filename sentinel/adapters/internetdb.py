@@ -7,7 +7,7 @@ Returns: open ports, CPEs, CVEs, hostnames, tags.
 Results cached in Postgres ThreatIntelCache for 7 days to minimise calls.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sentinel.adapters.base import BaseAdapter, CircuitOpenError
@@ -49,7 +49,9 @@ class InternetDBAdapter(BaseAdapter):
 
     async def lookup(self, ip: str) -> dict[str, Any]:
         if self.is_mock:
-            return _MOCK_DATA.get(ip, {"ip": ip, "ports": [], "cpes": [], "cves": [], "hostnames": [], "tags": []})
+            return _MOCK_DATA.get(
+                ip, {"ip": ip, "ports": [], "cpes": [], "cves": [], "hostnames": [], "tags": []}
+            )
 
         # Try cache first
         cached = await self._get_cached(ip)
@@ -64,7 +66,14 @@ class InternetDBAdapter(BaseAdapter):
             resp = await self._call("GET", url, span_name="lookup")
             if resp.status_code == 404:
                 await self._breaker.record_success()
-                result: dict[str, Any] = {"ip": ip, "ports": [], "cpes": [], "cves": [], "hostnames": [], "tags": []}
+                result: dict[str, Any] = {
+                    "ip": ip,
+                    "ports": [],
+                    "cpes": [],
+                    "cves": [],
+                    "hostnames": [],
+                    "tags": [],
+                }
                 await self._store_cached(ip, result)
                 return result
             resp.raise_for_status()
@@ -75,50 +84,61 @@ class InternetDBAdapter(BaseAdapter):
             raise
         except Exception as exc:
             self._log.warning("internetdb_lookup_failed", error=str(exc), ip=ip)
-            return {"ip": ip, "ports": [], "cpes": [], "cves": [], "hostnames": [], "tags": [], "error": str(exc)}
+            return {
+                "ip": ip,
+                "ports": [],
+                "cpes": [],
+                "cves": [],
+                "hostnames": [],
+                "tags": [],
+                "error": str(exc),
+            }
 
     async def _get_cached(self, ip: str) -> dict[str, Any] | None:
         try:
             from sqlalchemy import select
-            from sentinel.db.session import get_session_factory
+
             from sentinel.db.models import ThreatIntelCache
+            from sentinel.db.session import get_session_factory
 
             async with get_session_factory()() as session:
                 row = await session.scalar(
                     select(ThreatIntelCache).where(
                         ThreatIntelCache.indicator == ip,
                         ThreatIntelCache.source == self.adapter_name,
-                        ThreatIntelCache.expires_at > datetime.now(timezone.utc),
+                        ThreatIntelCache.expires_at > datetime.now(UTC),
                     )
                 )
                 if row:
                     return dict(row.data)
-        except Exception:
+        except Exception:  # noqa: S110  # cache read is best-effort; fall through to live lookup
             pass
         return None
 
     async def _store_cached(self, ip: str, data: dict[str, Any]) -> None:
         try:
             from sqlalchemy.dialects.postgresql import insert
-            from sentinel.db.session import get_session_factory
-            from sentinel.db.models import ThreatIntelCache
 
-            now = datetime.now(timezone.utc)
+            from sentinel.db.models import ThreatIntelCache
+            from sentinel.db.session import get_session_factory
+
+            now = datetime.now(UTC)
             expires = now + timedelta(days=_CACHE_TTL_DAYS)
-            async with get_session_factory()() as session:
-                async with session.begin():
-                    await session.execute(
-                        insert(ThreatIntelCache).values(
-                            indicator=ip,
-                            source=self.adapter_name,
-                            data=data,
-                            cached_at=now,
-                            expires_at=expires,
-                        ).on_conflict_do_update(
-                            index_elements=["indicator", "source"],
-                            set_={"data": data, "cached_at": now, "expires_at": expires},
-                        )
+            async with get_session_factory()() as session, session.begin():
+                await session.execute(
+                    insert(ThreatIntelCache)
+                    .values(
+                        indicator=ip,
+                        source=self.adapter_name,
+                        data=data,
+                        cached_at=now,
+                        expires_at=expires,
                     )
+                    .on_conflict_do_update(
+                        index_elements=["indicator", "source"],
+                        set_={"data": data, "cached_at": now, "expires_at": expires},
+                    )
+                )
         except Exception as exc:
             self._log.debug("internetdb_cache_store_failed", error=str(exc))
 

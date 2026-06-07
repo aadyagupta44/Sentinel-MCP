@@ -10,8 +10,8 @@ import pytest
 
 from sentinel.mcp.middleware import _sanitize_inputs, run_middleware
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def allow_policy():
@@ -33,6 +33,7 @@ def deny_policy():
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
+
 class TestMiddlewarePipeline:
     async def test_allowed_tool_returns_result(self, allow_policy):
         async def tool_fn(args):
@@ -41,7 +42,9 @@ class TestMiddlewarePipeline:
         with (
             patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
             patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
-            patch("sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=0),
+            patch(
+                "sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=0
+            ),
         ):
             result = await run_middleware("get_alert", {"alert_id": "ALT-001"}, tool_fn)
 
@@ -68,7 +71,9 @@ class TestMiddlewarePipeline:
         with (
             patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
             patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
-            patch("sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=0),
+            patch(
+                "sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=0
+            ),
         ):
             result = await run_middleware("search_logs", {"query": "fail"}, failing_tool)
 
@@ -83,7 +88,9 @@ class TestMiddlewarePipeline:
         with (
             patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
             patch("sentinel.mcp.middleware.write_audit_log", mock_audit),
-            patch("sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=0),
+            patch(
+                "sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=0
+            ),
         ):
             await run_middleware("get_alert", {"alert_id": "ALT-001"}, tool_fn)
 
@@ -117,7 +124,9 @@ class TestMiddlewarePipeline:
         with (
             patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
             patch("sentinel.mcp.middleware.write_audit_log", mock_audit),
-            patch("sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=999),
+            patch(
+                "sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=999
+            ),
         ):
             result = await run_middleware("enrich_ioc", {"indicator": "1.2.3.4"}, tool_fn)
 
@@ -131,7 +140,9 @@ class TestMiddlewarePipeline:
         with (
             patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
             patch("sentinel.mcp.middleware.write_audit_log", mock_audit),
-            patch("sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=0),
+            patch(
+                "sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=0
+            ),
         ):
             await run_middleware(
                 "user_context",
@@ -142,6 +153,93 @@ class TestMiddlewarePipeline:
         entry = mock_audit.call_args[0][0]
         assert entry.input_summary["api_key"] == "[REDACTED]"
         assert entry.input_summary["email"] == "alice@corp.com"
+
+
+class TestRateLimitRedisDown:
+    async def test_write_tool_fails_closed_when_redis_down(self, allow_policy):
+        async def tool_fn(args):
+            return {"action_type": "isolate_device"}
+
+        with (
+            patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
+            patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
+            patch(
+                "sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=-1
+            ),
+        ):
+            result = await run_middleware("isolate_device", {"hostname": "H"}, tool_fn)
+        assert result["code"] == "RATE_LIMIT_UNAVAILABLE"
+
+    async def test_read_tool_degrades_open_when_redis_down(self, allow_policy):
+        async def tool_fn(args):
+            return {"alert_id": "ALT-1"}
+
+        with (
+            patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
+            patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
+            patch(
+                "sentinel.mcp.middleware._get_rate_count", new_callable=AsyncMock, return_value=-1
+            ),
+        ):
+            result = await run_middleware("get_alert", {"alert_id": "ALT-1"}, tool_fn)
+        assert result["alert_id"] == "ALT-1"  # read tool still runs (degraded)
+
+
+class TestPrincipalAuthorization:
+    async def test_analyst_principal_denied_write_tool(self, allow_policy):
+        from sentinel.auth.context import (
+            Principal,
+            reset_current_principal,
+            set_current_principal,
+        )
+
+        async def tool_fn(args):
+            return {}  # must not run
+
+        principal = Principal("user-1", "analyst", ("soc:read", "soc:write"))
+        tok = set_current_principal(principal)
+        try:
+            with (
+                patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
+                patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
+                patch(
+                    "sentinel.mcp.middleware._get_rate_count",
+                    new_callable=AsyncMock,
+                    return_value=0,
+                ),
+            ):
+                result = await run_middleware("isolate_device", {"hostname": "H"}, tool_fn)
+        finally:
+            reset_current_principal(tok)
+        assert result["code"] == "FORBIDDEN"
+        assert result["reason"] == "write_requires_senior_analyst"
+
+    async def test_analyst_principal_allowed_read_tool(self, allow_policy):
+        from sentinel.auth.context import (
+            Principal,
+            reset_current_principal,
+            set_current_principal,
+        )
+
+        async def tool_fn(args):
+            return {"alert_id": "ALT-1"}
+
+        principal = Principal("user-1", "analyst", ("soc:read",))
+        tok = set_current_principal(principal)
+        try:
+            with (
+                patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
+                patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
+                patch(
+                    "sentinel.mcp.middleware._get_rate_count",
+                    new_callable=AsyncMock,
+                    return_value=0,
+                ),
+            ):
+                result = await run_middleware("get_alert", {"alert_id": "ALT-1"}, tool_fn)
+        finally:
+            reset_current_principal(tok)
+        assert result["alert_id"] == "ALT-1"
 
 
 class TestSanitizeInputs:

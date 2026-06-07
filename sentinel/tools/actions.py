@@ -17,16 +17,13 @@ from sentinel.mcp.middleware import run_middleware
 from sentinel.mcp.server import mcp
 from sentinel.tools.confirmation import create_proposal, execute_confirmed
 
-
 # ── isolate_device ────────────────────────────────────────────────────────────
 
+
 async def _mock_isolate(params: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "hostname": params["hostname"],
-        "action": "isolated",
-        "wazuh_agent_id": "agent-mock-001",
-        "note": "Mock isolation — Wazuh adapter available in Phase 3",
-    }
+    from sentinel.adapters.wazuh import get_wazuh_adapter
+
+    return await get_wazuh_adapter().isolate_agent(params["hostname"])
 
 
 async def _execute_isolate_device(args: dict[str, Any]) -> dict[str, Any]:
@@ -39,14 +36,20 @@ async def _execute_isolate_device(args: dict[str, Any]) -> dict[str, Any]:
     if not hostname:
         return {"error": "hostname is required", "code": "MISSING_PARAMETER"}
     if not reason:
-        return {"error": "reason is required — document why you are isolating this device", "code": "MISSING_PARAMETER"}
+        return {
+            "error": "reason is required — document why you are isolating this device",
+            "code": "MISSING_PARAMETER",
+        }
 
     if not confirmed:
         return await create_proposal(
             tool_name="isolate_device",
             analyst_id=settings.analyst_id,
             target=hostname,
-            description=f"Isolate host '{hostname}' from all network connectivity via Wazuh agent isolation.",
+            description=(
+                f"Isolate host '{hostname}' from all network connectivity "
+                "via Wazuh agent isolation."
+            ),
             warning=(
                 f"This will IMMEDIATELY cut all network access for '{hostname}'. "
                 "The user will lose internet, VPN, and domain connectivity. "
@@ -95,13 +98,11 @@ async def isolate_device(
 
 # ── disable_user ──────────────────────────────────────────────────────────────
 
+
 async def _mock_disable_user(params: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "email": params["email"],
-        "action": "suspended",
-        "keycloak_status": "SUSPENDED",
-        "note": "Mock suspension — Keycloak adapter available in Phase 3",
-    }
+    from sentinel.adapters.keycloak import get_keycloak_adapter
+
+    return await get_keycloak_adapter().suspend_user(params["email"])
 
 
 async def _execute_disable_user(args: dict[str, Any]) -> dict[str, Any]:
@@ -114,14 +115,19 @@ async def _execute_disable_user(args: dict[str, Any]) -> dict[str, Any]:
     if not email or "@" not in email:
         return {"error": "Valid email address is required", "code": "INVALID_PARAMETER"}
     if not reason:
-        return {"error": "reason is required — document why you are disabling this account", "code": "MISSING_PARAMETER"}
+        return {
+            "error": "reason is required — document why you are disabling this account",
+            "code": "MISSING_PARAMETER",
+        }
 
     if not confirmed:
         return await create_proposal(
             tool_name="disable_user",
             analyst_id=settings.analyst_id,
             target=email,
-            description=f"Suspend user account '{email}' in Keycloak. User will be unable to authenticate.",
+            description=(
+                f"Suspend user account '{email}' in Keycloak. User will be unable to authenticate."
+            ),
             warning=(
                 f"Suspending '{email}' will immediately block ALL their access: "
                 "SSO, email, VPN, cloud services. Inform HR before suspending. "
@@ -165,12 +171,15 @@ async def disable_user(
 
 # ── block_ip ──────────────────────────────────────────────────────────────────
 
+
 async def _mock_block_ip(params: dict[str, Any]) -> dict[str, Any]:
+    # No dedicated firewall adapter — the block is recorded in the Postgres
+    # blocklist (surfaced via the sentinel://watchlist/ips resource). In
+    # production this also pushes to the perimeter firewall.
     return {
         "ip_address": params["ip_address"],
         "action": "blocked",
         "storage": "postgres_blocklist",
-        "note": "Mock block — firewall push available in Phase 4",
     }
 
 
@@ -191,7 +200,10 @@ async def _execute_block_ip(args: dict[str, Any]) -> dict[str, Any]:
             tool_name="block_ip",
             analyst_id=settings.analyst_id,
             target=ip,
-            description=f"Add IP '{ip}' to the block list. In production this pushes to the perimeter firewall.",
+            description=(
+                f"Add IP '{ip}' to the block list. "
+                "In production this pushes to the perimeter firewall."
+            ),
             warning=(
                 f"Blocking '{ip}' will drop all traffic to/from this IP. "
                 "Verify this is not a shared IP (CDN, VPN gateway, NAT) that "
@@ -236,13 +248,11 @@ async def block_ip(
 
 # ── kill_process ──────────────────────────────────────────────────────────────
 
+
 async def _mock_kill_process(params: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "hostname": params["hostname"],
-        "pid": params["pid"],
-        "action": "terminated",
-        "note": "Mock kill — Wazuh active response available in Phase 3",
-    }
+    from sentinel.adapters.wazuh import get_wazuh_adapter
+
+    return await get_wazuh_adapter().kill_process(params["hostname"], params["pid"])
 
 
 async def _execute_kill_process(args: dict[str, Any]) -> dict[str, Any]:
@@ -267,7 +277,9 @@ async def _execute_kill_process(args: dict[str, Any]) -> dict[str, Any]:
             tool_name="kill_process",
             analyst_id=settings.analyst_id,
             target=f"{hostname}:PID-{pid_int}",
-            description=f"Terminate process PID {pid_int} on host '{hostname}' via Wazuh active response.",
+            description=(
+                f"Terminate process PID {pid_int} on host '{hostname}' via Wazuh active response."
+            ),
             warning=(
                 f"Killing PID {pid_int} on '{hostname}' is immediate and irreversible. "
                 "PIDs are reused — confirm this PID still belongs to the malicious "

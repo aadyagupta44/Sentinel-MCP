@@ -23,7 +23,12 @@ _MOCK_DATA: dict[str, dict[str, Any]] = {
             "id": "185.220.101.34",
             "type": "ip_address",
             "attributes": {
-                "last_analysis_stats": {"malicious": 18, "suspicious": 2, "harmless": 55, "undetected": 5},
+                "last_analysis_stats": {
+                    "malicious": 18,
+                    "suspicious": 2,
+                    "harmless": 55,
+                    "undetected": 5,
+                },
                 "last_analysis_date": 1748822400,
                 "country": "DE",
                 "as_owner": "netzbetrieb GmbH",
@@ -37,7 +42,12 @@ _MOCK_DATA: dict[str, dict[str, Any]] = {
             "id": "44d88612fea8a8f36de82e1278abb02f",
             "type": "file",
             "attributes": {
-                "last_analysis_stats": {"malicious": 62, "suspicious": 3, "harmless": 0, "undetected": 10},
+                "last_analysis_stats": {
+                    "malicious": 62,
+                    "suspicious": 3,
+                    "harmless": 0,
+                    "undetected": 10,
+                },
                 "meaningful_name": "emotet_dropper.exe",
                 "type_description": "Win32 EXE",
                 "reputation": -100,
@@ -50,7 +60,12 @@ _MOCK_DATA: dict[str, dict[str, Any]] = {
             "id": "8.8.8.8",
             "type": "ip_address",
             "attributes": {
-                "last_analysis_stats": {"malicious": 0, "suspicious": 0, "harmless": 80, "undetected": 0},
+                "last_analysis_stats": {
+                    "malicious": 0,
+                    "suspicious": 0,
+                    "harmless": 80,
+                    "undetected": 0,
+                },
                 "country": "US",
                 "as_owner": "Google LLC",
                 "reputation": 50,
@@ -93,7 +108,14 @@ class VirusTotalAdapter(BaseAdapter):
 
     async def analyze_ip(self, ip: str) -> dict[str, Any]:
         if self.is_mock:
-            return _MOCK_DATA.get(ip, {"data": {"attributes": {"last_analysis_stats": {"malicious": 0}, "reputation": 0}}})
+            return _MOCK_DATA.get(
+                ip,
+                {
+                    "data": {
+                        "attributes": {"last_analysis_stats": {"malicious": 0}, "reputation": 0}
+                    }
+                },
+            )
         if not self._enabled:
             return {}
 
@@ -102,7 +124,14 @@ class VirusTotalAdapter(BaseAdapter):
 
     async def analyze_hash(self, hash_value: str) -> dict[str, Any]:
         if self.is_mock:
-            return _MOCK_DATA.get(hash_value.lower(), {"data": {"attributes": {"last_analysis_stats": {"malicious": 0}, "reputation": 0}}})
+            return _MOCK_DATA.get(
+                hash_value.lower(),
+                {
+                    "data": {
+                        "attributes": {"last_analysis_stats": {"malicious": 0}, "reputation": 0}
+                    }
+                },
+            )
         if not self._enabled:
             return {}
 
@@ -111,7 +140,9 @@ class VirusTotalAdapter(BaseAdapter):
 
     async def analyze_domain(self, domain: str) -> dict[str, Any]:
         if self.is_mock:
-            return {"data": {"attributes": {"last_analysis_stats": {"malicious": 0}, "reputation": 0}}}
+            return {
+                "data": {"attributes": {"last_analysis_stats": {"malicious": 0}, "reputation": 0}}
+            }
         if not self._enabled:
             return {}
 
@@ -120,11 +151,14 @@ class VirusTotalAdapter(BaseAdapter):
 
     async def analyze_url(self, url: str) -> dict[str, Any]:
         if self.is_mock:
-            return {"data": {"attributes": {"last_analysis_stats": {"malicious": 0}, "reputation": 0}}}
+            return {
+                "data": {"attributes": {"last_analysis_stats": {"malicious": 0}, "reputation": 0}}
+            }
         if not self._enabled:
             return {}
 
         import base64
+
         url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
         await self._acquire_token()
         return await self._get(f"{_BASE_URL}/urls/{url_id}", url)
@@ -135,7 +169,9 @@ class VirusTotalAdapter(BaseAdapter):
 
         try:
             resp = await self._call(
-                "GET", url, span_name="analyze",
+                "GET",
+                url,
+                span_name="analyze",
                 headers={"x-apikey": self._api_key},
             )
             if resp.status_code == 404:
@@ -145,7 +181,9 @@ class VirusTotalAdapter(BaseAdapter):
         except CircuitOpenError:
             raise
         except Exception as exc:
-            self._log.warning("virustotal_analyze_failed", error=str(exc), indicator=str(indicator)[:30])
+            self._log.warning(
+                "virustotal_analyze_failed", error=str(exc), indicator=str(indicator)[:30]
+            )
             return {}
 
 

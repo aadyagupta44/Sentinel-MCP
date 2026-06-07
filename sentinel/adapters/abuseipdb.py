@@ -65,10 +65,16 @@ class AbuseIPDBAdapter(BaseAdapter):
 
     async def check_ip(self, ip: str, max_age_days: int = 90) -> dict[str, Any]:
         if self.is_mock:
-            return _MOCK_DATA.get(ip, {
-                "abuseConfidenceScore": 0, "countryCode": "XX",
-                "usageType": "Unknown", "isp": "", "totalReports": 0,
-            })
+            return _MOCK_DATA.get(
+                ip,
+                {
+                    "abuseConfidenceScore": 0,
+                    "countryCode": "XX",
+                    "usageType": "Unknown",
+                    "isp": "",
+                    "totalReports": 0,
+                },
+            )
         if not self._enabled:
             return {}
 

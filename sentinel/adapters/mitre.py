@@ -25,7 +25,10 @@ _MINIMAL_TECHNIQUES: dict[str, dict[str, Any]] = {
         "name": "Command and Scripting Interpreter: PowerShell",
         "tactic": "Execution",
         "description": "Adversaries may abuse PowerShell commands and scripts for execution.",
-        "detection": "Monitor for PowerShell with: -EncodedCommand, -WindowStyle Hidden, -ExecutionPolicy Bypass.",
+        "detection": (
+            "Monitor for PowerShell with: -EncodedCommand, -WindowStyle Hidden, "
+            "-ExecutionPolicy Bypass."
+        ),
         "mitigation": "Constrained Language Mode, AMSI, Script Block Logging.",
         "data_sources": ["Command: Command Execution", "Process: Process Creation"],
         "platforms": ["Windows"],
@@ -37,7 +40,10 @@ _MINIMAL_TECHNIQUES: dict[str, dict[str, Any]] = {
         "description": "Adversaries may obtain and abuse credentials of existing accounts.",
         "detection": "Monitor for impossible travel, new geographies, off-hours access.",
         "mitigation": "MFA, conditional access policies, privileged access workstations.",
-        "data_sources": ["Authentication: Authentication Log", "Logon Session: Logon Session Creation"],
+        "data_sources": [
+            "Authentication: Authentication Log",
+            "Logon Session: Logon Session Creation",
+        ],
         "platforms": ["Windows", "macOS", "Linux", "Cloud"],
     },
     "T1110.001": {

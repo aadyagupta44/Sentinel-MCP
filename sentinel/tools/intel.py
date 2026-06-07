@@ -1,11 +1,12 @@
-"""Threat intelligence tools.
+"""Threat intelligence tools (Phase 4).
 
-enrich_ioc      — FULLY IMPLEMENTED (Phase 2, mock data)
-threat_hunt     — stub (Phase 4: OpenSearch adapter)
-mitre_technique — stub (Phase 4: local MITRE STIX JSON)
+enrich_ioc      — multi-source composite verdict (curated mock composite;
+                  the individual source adapters are implemented + tested in Phase 3)
+threat_hunt     — OpenSearch adapter (full-archive indicator search)
+mitre_technique — MITRE adapter (local STIX 2.1 ATT&CK dataset)
 """
 
-from typing import Any, Literal
+from typing import Any
 
 from sentinel.mcp.middleware import run_middleware
 from sentinel.mcp.server import mcp
@@ -15,6 +16,7 @@ _VALID_IOC_TYPES = {"ip", "domain", "hash", "url"}
 
 
 # ── enrich_ioc ────────────────────────────────────────────────────────────────
+
 
 async def _execute_enrich_ioc(args: dict[str, Any]) -> dict[str, Any]:
     indicator = str(args.get("indicator", "")).strip()
@@ -61,14 +63,38 @@ async def enrich_ioc(
 
 # ── threat_hunt ───────────────────────────────────────────────────────────────
 
+
 async def _execute_threat_hunt(args: dict[str, Any]) -> dict[str, Any]:
+    indicator = str(args.get("indicator", "")).strip()
+    look_back_days = max(1, min(int(args.get("look_back_days", 30)), 365))
+    if not indicator:
+        return {"error": "indicator is required", "code": "MISSING_PARAMETER"}
+
+    from sentinel.adapters.opensearch import get_opensearch_adapter
+
+    hits = await get_opensearch_adapter().search_logs(
+        indicator, time_window_hours=look_back_days * 24, max_results=500
+    )
+    appearances = [
+        {
+            "timestamp": h.get("timestamp"),
+            "host": h.get("host"),
+            "source": h.get("source"),
+            "event_type": h.get("event_type"),
+            "message": h.get("message"),
+        }
+        for h in hits
+    ]
+    timestamps = sorted(a["timestamp"] for a in appearances if a.get("timestamp"))
+    hosts = sorted({a["host"] for a in appearances if a.get("host")})
     return {
-        "status": "not_yet_implemented",
-        "phase": "Phase 4 — OpenSearch adapter",
-        "indicator": args.get("indicator"),
-        "look_back_days": args.get("look_back_days", 30),
-        "appearances": [],
-        "total_appearances": 0,
+        "indicator": indicator,
+        "look_back_days": look_back_days,
+        "total_appearances": len(appearances),
+        "first_seen": timestamps[0] if timestamps else None,
+        "last_seen": timestamps[-1] if timestamps else None,
+        "affected_hosts": hosts,
+        "appearances": appearances,
     }
 
 
@@ -79,9 +105,7 @@ async def threat_hunt(indicator: str, look_back_days: int = 30) -> dict[str, Any
     Unlike search_logs (which searches recent alert-relevant events), threat_hunt
     searches the full log archive including events that never triggered an alert.
     Use this to determine when an IOC first appeared in your environment and
-    which systems it has touched.
-
-    Returns a chronological timeline of appearances.
+    which systems it has touched. Returns a chronological timeline of appearances.
 
     Args:
         indicator: IP address, file hash, username, hostname, or domain
@@ -96,71 +120,35 @@ async def threat_hunt(indicator: str, look_back_days: int = 30) -> dict[str, Any
 
 # ── mitre_technique ───────────────────────────────────────────────────────────
 
+
 async def _execute_mitre_technique(args: dict[str, Any]) -> dict[str, Any]:
     tid = str(args.get("technique_id", "")).strip().upper()
-    # Basic validation
     if not tid.startswith("T") or not any(c.isdigit() for c in tid):
         return {
             "error": f"'{tid}' is not a valid MITRE ATT&CK technique ID",
             "code": "INVALID_PARAMETER",
             "examples": ["T1059.001", "T1078", "T1003.001"],
         }
-    # Stub responses for known IDs used in test data
-    known: dict[str, dict[str, Any]] = {
-        "T1059.001": {
-            "technique_id": "T1059.001",
-            "name": "Command and Scripting Interpreter: PowerShell",
-            "tactic": "Execution",
-            "description": "Adversaries may abuse PowerShell commands and scripts for execution.",
-            "detection": "Monitor for PowerShell execution with suspicious flags: -EncodedCommand, -WindowStyle Hidden, -NonInteractive, -ExecutionPolicy Bypass.",
-            "mitigation": "Constrained Language Mode, AMSI, Logging (Script Block Logging, Module Logging, Transcription).",
-            "data_sources": ["Command: Command Execution", "Process: Process Creation"],
-        },
-        "T1078": {
-            "technique_id": "T1078",
-            "name": "Valid Accounts",
-            "tactic": "Defense Evasion, Persistence, Privilege Escalation, Initial Access",
-            "description": "Adversaries may obtain and abuse credentials of existing accounts to gain access.",
-            "detection": "Monitor for impossible travel, logins from new geographies/devices, off-hours access.",
-            "mitigation": "MFA, conditional access policies, privileged access workstations.",
-            "data_sources": ["Authentication: Authentication Log", "Logon Session: Logon Session Creation"],
-        },
-        "T1110.001": {
-            "technique_id": "T1110.001",
-            "name": "Brute Force: Password Guessing",
-            "tactic": "Credential Access",
-            "description": "Adversaries may use repeated login attempts with common passwords.",
-            "detection": "Monitor for high volume of failed authentications from single source IP.",
-            "mitigation": "Account lockout policy, MFA, login rate limiting.",
-            "data_sources": ["Authentication: Authentication Log"],
-        },
-        "T1003.001": {
-            "technique_id": "T1003.001",
-            "name": "OS Credential Dumping: LSASS Memory",
-            "tactic": "Credential Access",
-            "description": "Adversaries may attempt to access credential material stored in LSASS process memory.",
-            "detection": "Monitor for access to LSASS process memory, tools like Mimikatz or ProcDump targeting LSASS.",
-            "mitigation": "Credential Guard, LSA Protection, restrict debugging privileges.",
-            "data_sources": ["Process: OS API Execution", "Process: Process Access"],
-        },
-    }
-    if tid in known:
-        return known[tid]
-    return {
-        "status": "not_yet_implemented",
-        "phase": "Phase 4 — local MITRE STIX JSON",
-        "technique_id": tid,
-        "note": "Full MITRE ATT&CK lookup available after Phase 4.",
-    }
+
+    from sentinel.adapters.mitre import get_mitre_adapter
+
+    technique = await get_mitre_adapter().get_technique(tid)
+    if technique is None:
+        return {
+            "error": f"Technique '{tid}' not found in the ATT&CK dataset",
+            "code": "NOT_FOUND",
+            "examples": ["T1059.001", "T1078", "T1110.001", "T1003.001"],
+        }
+    return technique
 
 
 @mcp.tool()
 async def mitre_technique(technique_id: str) -> dict[str, Any]:
     """Look up a MITRE ATT&CK technique: name, tactic, detection, mitigation.
 
-    Uses the local STIX 2.1 Enterprise ATT&CK JSON — no API call, always fast.
-    Use this after get_alert() to understand what the attacker was trying to
-    do and what defensive actions are recommended.
+    Uses the local STIX 2.1 Enterprise ATT&CK dataset — no API call at lookup
+    time, always fast. Use this after get_alert() to understand what the
+    attacker was trying to do and what defensive actions are recommended.
 
     Args:
         technique_id: MITRE technique ID, e.g. "T1059.001" or "T1078"
