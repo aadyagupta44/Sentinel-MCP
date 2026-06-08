@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 8 — Marketplace Prep & v1.0.0 Release (2026-06-08)
+
+### Added
+- **Production release documentation:**
+  - Phase 8 breakage report (`docs/test-reports/phase8.md`): security audit, 4 low-severity findings, mock-vs-real gaps documented
+  - Phase 8 journey doc (`docs/phases/phase8.md`): final release checklist, limitations, deferred work
+  - SECURITY.md: threat model, disclosure policy, security headers
+  - CONTRIBUTING.md: contribution guidelines, developer setup
+  - RELEASE.md: v1.0.0 release notes and known limitations
+- **Marketplace readiness:**
+  - MCP manifest (/.well-known/mcp): honest advertising of 18 tools, 4 resources, 3 prompts, OAuth 2.1 PKCE
+  - Docker Compose validated: all services (Postgres, Redis, OpenSearch, OPA, Keycloak) healthy on startup
+  - .env.example: all configuration options documented
+  - Quickstart path: clone → docker-compose up → pytest → python -m sentinel.main (verified)
+- **v1.0.0 Git tag:** Production snapshot ready for marketplace publication
+
+### Changed
+- README.md updated to Phase 8 status, Phase 4 stub limitations documented
+- All 497 tests passing (0 failures), 95.42% coverage (gate: 80%)
+- Security audit complete: 0 critical, 0 high, 4 low-severity findings (binding to 0.0.0.0, request size limits, CSRF, mock-vs-real gaps)
+
+### Known gaps
+- Phase 4 stubs remain in production (`enrich_ioc`, `risk_score_user`, `weekly_summary`): curated mock data, no live adapter multi-source
+- Mock-vs-real validation: tools tested against respx mocks, not real OpenSearch/Keycloak/Wazuh. First live deployment must validate `weekly_summary` aggregation shape and `enrich_ioc` response format
+- Live-run tests not in CI/CD; deferred to Phase 9 (simulator + real backends)
+- Alembic auto-migration lint debt: 5 ruff violations (I001, UP035, UP007) — acceptable, documented in CONTRIBUTING.md
+- 51 mypy errors: pre-existing from adapters/tools (Any/Union patterns); 0 new Phase 8 errors
+
 ## Phase 7 — Hardening & Observability (2026-06-08)
 
 ### Added

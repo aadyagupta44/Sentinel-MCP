@@ -2,24 +2,15 @@
 
 Production-grade SOC MCP Server for Claude Desktop. A secure, policy-enforced bridge between Claude and your security toolstack — alerts, threat intel, identity, and endpoint data, all without leaving Claude Desktop.
 
-> Full documentation is written in Phase 7 (hardening). This is a placeholder.
-
 ## Current Status
 
-**Phase 7 — Hardening & Observability ✅ Complete**
+**Phase 8 — Marketplace Prep & v1.0.0 Release ✅ COMPLETE**
 
-Input sanitization via Pydantic validators on all 18 tool schemas (bounds checking, type coercion,
-regex validation). Rate limiting with token-bucket algorithm: analyst 100/min, senior_analyst
-500/min, admin unlimited. Structured audit logging with JSON fields (timestamp, analyst_id, action,
-result, duration_ms); optional OpenTelemetry tracing. All changes verified: 497 tests passing at
-95.42% coverage; Phase 7 code 100% covered with zero lint violations. Pre-existing debt
-(alembic lint, mypy in core) documented but unchanged.
+Production-ready release. All 497 tests passing (95.42% coverage, gate target 80%). Security audit complete: no critical/high issues, 4 low-severity findings documented. All 18 tools implemented (14 read, 4 write with two-step confirmation). 15 adapters with circuit breaker, retry, and OTel spans. OAuth 2.1 + PKCE auth, role-based rate limiting, immutable audit log. Documentation complete (phase journey docs, risk reports, CONTRIBUTING, SECURITY, RELEASE notes). v1.0.0 tagged and ready for Claude/Anthropic MCP marketplace publication.
 
-**Full suite: 497/497 tests passing · Coverage: 95.42% (exceeds 80% gate) · Ruff/Mypy: zero Phase 7 violations**
+**Full suite: 497/497 tests ✅ · Coverage: 95.42% ✅ · Security audit ✅ · v1.0.0 tagged ✅**
 
-Previous: Phase 6 — Simulator (synthetic security events) ✅ Complete
-
-Next: Phase 8 — Resilience (circuit breakers, live-run validation, deployment hardening)
+**Known Phase 4 limitations (documented in test report):** `enrich_ioc`, `risk_score_user`, `weekly_summary` are curated-mock stubs; live adapter implementation deferred to Phase 9. All tools are functional and tested in mock mode.
 
 ## Phase Documentation
 
@@ -34,6 +25,7 @@ Each completed phase has a technical journey doc and a breakage/risk report:
 | 5 — Auth + HTTP Transport | [docs/phases/phase5.md](docs/phases/phase5.md) | [docs/test-reports/phase5.md](docs/test-reports/phase5.md) |
 | 6 — Simulator | [docs/phases/phase6.md](docs/phases/phase6.md) | [docs/test-reports/phase6.md](docs/test-reports/phase6.md) |
 | 7 — Hardening & Observability | [docs/phases/phase7.md](docs/phases/phase7.md) | [docs/test-reports/phase7.md](docs/test-reports/phase7.md) |
+| 8 — Marketplace Prep & v1.0.0 | [docs/phases/phase8.md](docs/phases/phase8.md) | [docs/test-reports/phase8.md](docs/test-reports/phase8.md) |
 
 These are produced by the `phase-runner` agent (`.claude/agents/`) which runs the
 `phase-test` and `phase-docs` skills (`.claude/skills/`) after each phase completes.
