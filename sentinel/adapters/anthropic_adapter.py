@@ -22,15 +22,16 @@ logger = structlog.get_logger("sentinel.adapters.anthropic")
 
 
 class IncidentData(BaseModel):
-    """Schema for incident narrative generation."""
+    """Schema for incident narrative generation (lenient for partial data)."""
 
-    alert_id: str = Field(..., min_length=1, max_length=100)
+    alert_id: str | None = Field(default=None, max_length=100)
     severity: str = Field(default="medium", pattern="^(critical|high|medium|low)$")
-    rule_name: str = Field(..., min_length=1, max_length=200)
+    rule_name: str | None = Field(default=None, max_length=200)
     description: str = Field(default="", max_length=5000)
     affected_user: str = Field(default="", max_length=200)
     affected_host: str = Field(default="", max_length=200)
     technique_ids: list[str] = Field(default_factory=list, max_items=10)
+    confidence: str = Field(default="medium", pattern="^(high|medium|low)$")
 
     @field_validator("technique_ids")
     @classmethod
@@ -42,9 +43,9 @@ class IncidentData(BaseModel):
 
 
 class SummaryData(BaseModel):
-    """Schema for weekly summary narrative generation."""
+    """Schema for weekly summary narrative generation (lenient for partial data)."""
 
-    week_starting: str = Field(..., description="ISO date, e.g. 2026-06-01")
+    week_starting: str | None = Field(default=None, description="ISO date, e.g. 2026-06-01")
     total_alerts: int = Field(default=0, ge=0, le=100000)
     critical_count: int = Field(default=0, ge=0)
     high_count: int = Field(default=0, ge=0)
@@ -53,6 +54,7 @@ class SummaryData(BaseModel):
     unique_users: int = Field(default=0, ge=0, le=10000)
     unique_hosts: int = Field(default=0, ge=0, le=10000)
     top_rules: list[str] = Field(default_factory=list, max_items=10)
+    trend: str = Field(default="stable", pattern="^(improving|stable|worsening)$")
     notes: str = Field(default="", max_length=2000)
 
 _REPORT_SYSTEM_PROMPT = """You are a senior SOC analyst writing a professional incident report.

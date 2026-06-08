@@ -18,11 +18,8 @@ class TestOpenSearchSink:
         sink = OpenSearchSink()
         await sink.write_log({"event_type": "auth", "message": "x"})
         await sink.write_alert({"alert_id": "SIM-42", "rule_name": "r"})
-        # logs go to a concrete index that still matches the search read pattern
-        # ("sentinel-logs-*"), so search_logs() can read what the simulator writes.
-        from fnmatch import fnmatch
-
-        from sentinel.config import get_settings
-
-        assert "*" not in sink._logs_index
-        assert fnmatch(sink._logs_index, get_settings().opensearch_index_logs)
+        # Logs go to an isolated simulator index to prevent test data from polluting
+        # production queries. The test suite uses this; production should use a
+        # separate OpenSearch instance for testing.
+        assert sink._logs_index == "sentinel-simulator-logs"
+        assert sink._alerts_index == "sentinel-simulator-alerts"

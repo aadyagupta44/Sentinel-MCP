@@ -152,7 +152,7 @@ class TestMiddlewarePipeline:
 
         entry = mock_audit.call_args[0][0]
         assert entry.input_summary["api_key"] == "[REDACTED]"
-        assert entry.input_summary["email"] == "alice@corp.com"
+        assert entry.input_summary["email"] == "[EMAIL_REDACTED]"  # PII redaction
 
 
 class TestRateLimitRedisDown:
