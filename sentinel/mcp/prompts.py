@@ -10,9 +10,6 @@ Registered prompts:
   morning_briefing   — daily SOC shift handover briefing
 """
 
-from mcp.server.fastmcp import FastMCP
-from mcp.types import GetPromptResult, PromptMessage, TextContent
-
 from sentinel.mcp.server import mcp
 
 

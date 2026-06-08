@@ -1,6 +1,5 @@
 """Unit tests for endpoint forensics tools."""
 
-import pytest
 
 
 class TestDeviceProcesses:

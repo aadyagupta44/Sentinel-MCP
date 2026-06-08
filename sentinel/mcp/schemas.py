@@ -5,8 +5,8 @@ Every tool's input and output is typed — no raw dicts cross the tool boundary.
 """
 
 from typing import Any, Literal
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 # ── Error models ──────────────────────────────────────────────────────────────
 

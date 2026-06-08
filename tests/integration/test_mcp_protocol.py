@@ -10,7 +10,6 @@ Verifies that the server correctly implements the MCP spec:
 
 import pytest
 
-
 ALL_TOOLS = {
     "get_alert", "search_logs", "correlate_alerts", "similar_incidents",
     "enrich_ioc", "threat_hunt", "mitre_technique",
@@ -36,7 +35,7 @@ class TestToolListing:
         # list_tools() is async in MCP SDK
         tools = await mcp.list_tools()
         tool_names = {t.name for t in tools}
-        assert ALL_TOOLS == tool_names, (
+        assert tool_names == ALL_TOOLS, (
             f"Missing: {ALL_TOOLS - tool_names}\nExtra: {tool_names - ALL_TOOLS}"
         )
 
@@ -56,8 +55,9 @@ class TestToolListing:
 
 class TestToolCalls:
     async def test_get_alert_returns_structured_data(self):
-        from sentinel.mcp.server import mcp
         from unittest.mock import AsyncMock, patch
+
+        from sentinel.mcp.server import mcp
 
         with (
             patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
@@ -74,9 +74,9 @@ class TestToolCalls:
         assert "ALT-2026-001" in text
 
     async def test_enrich_ioc_returns_verdict(self):
-        from sentinel.mcp.server import mcp
         from unittest.mock import AsyncMock, patch
-        import json
+
+        from sentinel.mcp.server import mcp
 
         with (
             patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
@@ -97,9 +97,9 @@ class TestToolCalls:
             await mcp.call_tool("nonexistent_tool", {})
 
     async def test_policy_denied_returns_structured_error(self):
-        from sentinel.mcp.server import mcp
         from unittest.mock import AsyncMock, patch
-        import json
+
+        from sentinel.mcp.server import mcp
 
         with (
             patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),

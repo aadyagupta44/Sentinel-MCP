@@ -1,6 +1,5 @@
 """Unit tests for identity tools."""
 
-import pytest
 
 
 class TestUserContext:

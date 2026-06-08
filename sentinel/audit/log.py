@@ -13,7 +13,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -42,41 +42,40 @@ class AuditEntry:
     duration_ms: int
     trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     metadata: dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 async def write_audit_log(entry: AuditEntry) -> None:
     """Append one entry to the audit log inside a serialised transaction."""
     factory = get_session_factory()
-    async with factory() as session:
-        async with session.begin():
-            # Serialise across all workers — released automatically on commit/rollback
-            await session.execute(
-                text(f"SELECT pg_advisory_xact_lock({_ADVISORY_LOCK_KEY})")
+    async with factory() as session, session.begin():
+        # Serialise across all workers — released automatically on commit/rollback
+        await session.execute(
+            text(f"SELECT pg_advisory_xact_lock({_ADVISORY_LOCK_KEY})")
+        )
+
+        prev_hash = await _get_last_hash(session)
+
+        data_for_hash = _build_hash_payload(entry, prev_hash)
+        row_hash = hashlib.sha256(
+            json.dumps(data_for_hash, sort_keys=True, default=str).encode()
+        ).hexdigest()
+
+        session.add(
+            AuditLog(
+                row_hash=row_hash,
+                prev_hash=prev_hash,
+                trace_id=entry.trace_id,
+                timestamp=entry.timestamp,
+                analyst_id=entry.analyst_id,
+                tool_name=entry.tool_name,
+                input_summary=entry.input_summary,
+                policy_result=entry.policy_result,
+                response_code=entry.response_code,
+                duration_ms=entry.duration_ms,
+                metadata_=entry.metadata,
             )
-
-            prev_hash = await _get_last_hash(session)
-
-            data_for_hash = _build_hash_payload(entry, prev_hash)
-            row_hash = hashlib.sha256(
-                json.dumps(data_for_hash, sort_keys=True, default=str).encode()
-            ).hexdigest()
-
-            session.add(
-                AuditLog(
-                    row_hash=row_hash,
-                    prev_hash=prev_hash,
-                    trace_id=entry.trace_id,
-                    timestamp=entry.timestamp,
-                    analyst_id=entry.analyst_id,
-                    tool_name=entry.tool_name,
-                    input_summary=entry.input_summary,
-                    policy_result=entry.policy_result,
-                    response_code=entry.response_code,
-                    duration_ms=entry.duration_ms,
-                    metadata_=entry.metadata,
-                )
-            )
+        )
 
     logger.info(
         "audit_written",

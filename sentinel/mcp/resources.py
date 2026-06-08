@@ -11,7 +11,6 @@ Registered resources:
 """
 
 import json
-from typing import Any
 
 from sentinel.mcp.server import mcp
 from sentinel.tools import mock_data as mock

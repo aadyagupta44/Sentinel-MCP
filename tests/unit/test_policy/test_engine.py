@@ -8,7 +8,6 @@ instance is needed. They verify the engine's behaviour when:
 - Policy enforcement is disabled
 """
 
-import os
 
 import pytest
 import respx

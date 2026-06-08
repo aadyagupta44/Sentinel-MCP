@@ -9,12 +9,9 @@ These tests verify that:
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-import pytest
-
-from sentinel.audit.log import GENESIS_HASH, _build_hash_payload, AuditEntry
-from sentinel.db.models import AuditLog
+from sentinel.audit.log import GENESIS_HASH, AuditEntry, _build_hash_payload
 
 
 class TestHashComputation:
@@ -31,7 +28,7 @@ class TestHashComputation:
             response_code="success",
             duration_ms=42,
             trace_id="trace-001",
-            timestamp=datetime(2026, 6, 2, 12, 0, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 6, 2, 12, 0, 0, tzinfo=UTC),
         )
         payload1 = _build_hash_payload(entry, GENESIS_HASH)
         payload2 = _build_hash_payload(entry, GENESIS_HASH)
@@ -66,7 +63,7 @@ class TestHashComputation:
             policy_result={"allow": True},
             response_code="success",
             duration_ms=42,
-            timestamp=datetime(2026, 6, 2, 12, 0, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 6, 2, 12, 0, 0, tzinfo=UTC),
         )
         modified = AuditEntry(
             analyst_id="bob@corp.com",  # changed
@@ -75,7 +72,7 @@ class TestHashComputation:
             policy_result={"allow": True},
             response_code="success",
             duration_ms=42,
-            timestamp=datetime(2026, 6, 2, 12, 0, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 6, 2, 12, 0, 0, tzinfo=UTC),
         )
         payload_base = _build_hash_payload(base, GENESIS_HASH)
         payload_mod = _build_hash_payload(modified, GENESIS_HASH)
