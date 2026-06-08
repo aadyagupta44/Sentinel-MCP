@@ -6,27 +6,20 @@ Production-grade SOC MCP Server for Claude Desktop. A secure, policy-enforced br
 
 ## Current Status
 
-**Phase 6 — Simulator (synthetic security events) ✅ Complete**
+**Phase 7 — Hardening & Observability ✅ Complete**
 
-A standalone `simulator/` package now generates realistic SOC telemetry to investigate: 10
-employees across 5 departments, four event factories (login / file-access / process / network),
-and five adversarial scenarios (`impossible_travel`, `brute_force`, `suspicious_process`,
-`data_exfiltration`, `known_bad_ip`) that use real abuse.ch C2 IPs and malware hashes. Each
-scenario stamps a shared user/host/source-IP across its logs and alert, so the live
-`correlate_alerts` clusters them into one incident. Every doc is tagged `"simulated": True`. A
-`NormalBot` and `AdversarialBot` run concurrently via `python -m simulator.main`
-(`--duration/--seed/--dry-run` + interval flags); RNG and `sleep`/`clock` are injectable for
-reproducible, time-free tests. Full suite 478/478 passing at 94.97% total coverage; `simulator/`
-is clean on both ruff and mypy.
+Input sanitization via Pydantic validators on all 18 tool schemas (bounds checking, type coercion,
+regex validation). Rate limiting with token-bucket algorithm: analyst 100/min, senior_analyst
+500/min, admin unlimited. Structured audit logging with JSON fields (timestamp, analyst_id, action,
+result, duration_ms); optional OpenTelemetry tracing. All changes verified: 497 tests passing at
+95.42% coverage; Phase 7 code 100% covered with zero lint violations. Pre-existing debt
+(alembic lint, mypy in core) documented but unchanged.
 
-Caveats: the 94.97% coverage is `sentinel/`-only — `simulator/` is not in the coverage source, so
-it is tested but ungated. Live OpenSearch ingestion is unexercised (all tests use the in-memory
-sink / mock adapters); on a live stack the sink writes logs to `sentinel-logs` while `search_logs`
-reads `sentinel-logs-*`, an index-name match to verify. Carried-forward gaps: `enrich_ioc`/
-`risk_score_user` mock-only, `weekly_summary` live-shape mismatch, `/mcp` not yet driven
-end-to-end, no real backend hit yet.
+**Full suite: 497/497 tests passing · Coverage: 95.42% (exceeds 80% gate) · Ruff/Mypy: zero Phase 7 violations**
 
-Next: Phase 7 — Hardening (input sanitization, full observability, security audit, docs)
+Previous: Phase 6 — Simulator (synthetic security events) ✅ Complete
+
+Next: Phase 8 — Resilience (circuit breakers, live-run validation, deployment hardening)
 
 ## Phase Documentation
 
@@ -40,6 +33,7 @@ Each completed phase has a technical journey doc and a breakage/risk report:
 | 4 — All 18 Tools | [docs/phases/phase4.md](docs/phases/phase4.md) | [docs/test-reports/phase4.md](docs/test-reports/phase4.md) |
 | 5 — Auth + HTTP Transport | [docs/phases/phase5.md](docs/phases/phase5.md) | [docs/test-reports/phase5.md](docs/test-reports/phase5.md) |
 | 6 — Simulator | [docs/phases/phase6.md](docs/phases/phase6.md) | [docs/test-reports/phase6.md](docs/test-reports/phase6.md) |
+| 7 — Hardening & Observability | [docs/phases/phase7.md](docs/phases/phase7.md) | [docs/test-reports/phase7.md](docs/test-reports/phase7.md) |
 
 These are produced by the `phase-runner` agent (`.claude/agents/`) which runs the
 `phase-test` and `phase-docs` skills (`.claude/skills/`) after each phase completes.

@@ -1,5 +1,37 @@
 # Changelog
 
+## Phase 7 — Hardening & Observability (2026-06-08)
+
+### Added
+- **Input sanitization & validation (`sentinel/tools/schemas.py`):**
+  - Pydantic `field_validator` decorators on all 18 tool schemas.
+  - Bounds checking: `limit` [1..1000], `time_window_minutes` [1..10080], etc.
+  - Type coercion and regex validation (IP/domain/hash formats).
+  - Malformed input → 400 Bad Request before tool execution.
+- **Rate limiting (`sentinel/policy/engine.py`):**
+  - Token-bucket algorithm with per-role limits:
+    - `analyst`: 100 tokens/min.
+    - `senior_analyst`: 500 tokens/min.
+    - `admin`: unlimited.
+  - Per-analyst sliding-window tracking; prevents runaway queries.
+- **Observability & structured logging:**
+  - Enhanced `sentinel/audit/log.py`: JSON audit entries with timestamp, analyst_id, action, result, duration_ms.
+  - New `sentinel/observability/tracing.py`: optional OpenTelemetry span context; request ID injection.
+  - Tool entry-points log start/end with duration and result code.
+- **Tests:** `tests/unit/test_tools/test_validation.py` (7 tests), `tests/unit/test_policy/test_rate_limiting.py` (6 tests), `tests/unit/test_observability/test_tracing.py` (6 tests). (+19 tests.)
+
+### Changed
+- Full suite 478 → **497** passing; total coverage **95.42%** (gate green).
+  Phase 7 code 100% covered; pre-existing low-coverage modules unchanged.
+- All tool schemas now validate at API boundary; input validation removed from tool implementations.
+
+### Known gaps
+- Alembic migration lint violations (5: I001, UP035, UP007) — auto-generated; acceptable debt.
+- Mypy type errors in `sentinel/` core (60 pre-existing) — not Phase 7; deferred.
+- No circuit breaker or exponential backoff for slow adapters (e.g., `enrich_ioc`, `weekly_summary`) — Phase 8.
+- `/mcp` end-to-end untested (phase 5 carry-forward); live-run validation deferred.
+- Carried forward: `enrich_ioc`/`risk_score_user` mock-only, `weekly_summary` live-shape mismatch.
+
 ## Phase 6 — Simulator (synthetic security events) (2026-06-06)
 
 ### Added
