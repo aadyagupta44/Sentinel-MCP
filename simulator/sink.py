@@ -40,13 +40,17 @@ class OpenSearchSink:
 
         s = get_settings()
         self._adapter = get_opensearch_adapter()
-        # opensearch_index_logs is a read PATTERN ("sentinel-logs-*"). Write to a concrete
-        # index that still MATCHES that wildcard so search_logs() can read what we write
-        # ("sentinel-logs-*" → "sentinel-logs-sim").
-        pattern = s.opensearch_index_logs
-        self._logs_index = pattern.replace("*", "sim") if "*" in pattern else pattern
-        self._alerts_index = s.opensearch_index_alerts
+        # Use isolated simulator indices to prevent test data from polluting production
+        # The test suite WILL read from these; integration tests should use a test
+        # Opensearch instance. In dry-run mode, these are never accessed.
+        self._logs_index = "sentinel-simulator-logs"
+        self._alerts_index = "sentinel-simulator-alerts"
         self._seq = 0
+        logger.info(
+            "opensearch_sink_isolation",
+            logs_index=self._logs_index,
+            alerts_index=self._alerts_index,
+        )
 
     async def write_log(self, doc: dict[str, Any]) -> None:
         self._seq += 1

@@ -11,6 +11,7 @@ The pipeline never raises — it always returns a structured response dict.
 Exceptions inside the tool are caught and returned as error objects.
 """
 
+import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -25,6 +26,10 @@ from sentinel.policy.engine import get_opa_engine
 logger = structlog.get_logger(__name__)
 
 _SENSITIVE_KEYS = frozenset({"password", "token", "secret", "api_key", "credential", "auth", "key"})
+# PII patterns: email, IP addresses, phone numbers
+_EMAIL_PATTERN = re.compile(r"[\w.-]+@[\w.-]+\.\w+")
+_IP_PATTERN = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
+_PHONE_PATTERN = re.compile(r"\d{3}[-.]?\d{3}[-.]?\d{4}")
 
 
 async def run_middleware(
@@ -167,10 +172,22 @@ async def run_middleware(
 
 
 def _sanitize_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
-    return {
-        k: "[REDACTED]" if any(s in k.lower() for s in _SENSITIVE_KEYS) else v
-        for k, v in inputs.items()
-    }
+    """Sanitize inputs by redacting sensitive keys and PII patterns."""
+    result = {}
+    for k, v in inputs.items():
+        # Redact based on key name (password, token, etc.)
+        if any(s in k.lower() for s in _SENSITIVE_KEYS):
+            result[k] = "[REDACTED]"
+        # Redact PII in string values (emails, IPs, phone numbers)
+        elif isinstance(v, str):
+            sanitized = v
+            sanitized = _EMAIL_PATTERN.sub("[EMAIL_REDACTED]", sanitized)
+            sanitized = _IP_PATTERN.sub("[IP_REDACTED]", sanitized)
+            sanitized = _PHONE_PATTERN.sub("[PHONE_REDACTED]", sanitized)
+            result[k] = sanitized
+        else:
+            result[k] = v
+    return result
 
 
 def _elapsed_ms(start: float) -> int:

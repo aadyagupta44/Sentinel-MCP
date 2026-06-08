@@ -236,6 +236,9 @@ async def _execute_similar_incidents(args: dict[str, Any]) -> dict[str, Any]:
     if target is None:
         return {"error": f"Alert '{alert_id}' not found", "code": "NOT_FOUND"}
 
+    # Security: Limit search to most recent 200 alerts (approximately 7-30 days
+    # depending on alert volume). This prevents unbounded searches across years
+    # of data, which could cause performance issues or resource exhaustion.
     pool = await adapter.get_alerts(limit=200)
     ranked: list[dict[str, Any]] = []
     for candidate in pool:

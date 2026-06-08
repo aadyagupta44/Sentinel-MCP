@@ -14,9 +14,10 @@ from typing import Any
 
 import structlog
 import uvicorn
-from fastapi import Body, Depends, FastAPI, HTTPException, status
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Import tool, resource, and prompt modules to trigger @mcp.tool() /
 # @mcp.resource() / @mcp.prompt() registration with the FastMCP instance.
@@ -44,6 +45,46 @@ from sentinel.mcp.server import mcp
 logger = structlog.get_logger(__name__)
 settings = get_settings()
 _start_time = time.time()
+
+# Maximum request body size: 1 MB
+_MAX_BODY_SIZE = 1048576
+
+
+# ── Security Middleware ────────────────────────────────────────────────────────
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Prevent MIME type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        # Prevent clickjacking (deny framing from any origin)
+        response.headers["X-Frame-Options"] = "DENY"
+        # Enable HSTS (strict transport security) — 1 year + subdomains
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        # CSP: disable inline scripts, only same-origin styles
+        response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self'; script-src 'self'"
+        # Referrer policy: only send referrer within same origin
+        response.headers["Referrer-Policy"] = "same-origin"
+        # Disable permissions policy (no camera, mic, geolocation, etc.)
+        response.headers["Permissions-Policy"] = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        return response
+
+
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    """Enforce maximum request body size (DoS protection)."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Check Content-Length header before reading body
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > _MAX_BODY_SIZE:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"Request body too large (max {_MAX_BODY_SIZE} bytes)"},
+            )
+        return await call_next(request)
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -136,6 +177,8 @@ _DEV_CORS_ORIGINS = [
     "http://localhost:3000",
 ]
 
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(McpAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,

@@ -14,10 +14,46 @@ import json
 from typing import Any
 
 import structlog
+from pydantic import BaseModel, Field, field_validator
 
 from sentinel.config import get_settings
 
 logger = structlog.get_logger("sentinel.adapters.anthropic")
+
+
+class IncidentData(BaseModel):
+    """Schema for incident narrative generation."""
+
+    alert_id: str = Field(..., min_length=1, max_length=100)
+    severity: str = Field(default="medium", pattern="^(critical|high|medium|low)$")
+    rule_name: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="", max_length=5000)
+    affected_user: str = Field(default="", max_length=200)
+    affected_host: str = Field(default="", max_length=200)
+    technique_ids: list[str] = Field(default_factory=list, max_items=10)
+
+    @field_validator("technique_ids")
+    @classmethod
+    def validate_technique_ids(cls, v: list[str]) -> list[str]:
+        for tid in v:
+            if not tid or len(tid) > 50:
+                raise ValueError(f"Invalid technique ID: {tid}")
+        return v
+
+
+class SummaryData(BaseModel):
+    """Schema for weekly summary narrative generation."""
+
+    week_starting: str = Field(..., description="ISO date, e.g. 2026-06-01")
+    total_alerts: int = Field(default=0, ge=0, le=100000)
+    critical_count: int = Field(default=0, ge=0)
+    high_count: int = Field(default=0, ge=0)
+    medium_count: int = Field(default=0, ge=0)
+    low_count: int = Field(default=0, ge=0)
+    unique_users: int = Field(default=0, ge=0, le=10000)
+    unique_hosts: int = Field(default=0, ge=0, le=10000)
+    top_rules: list[str] = Field(default_factory=list, max_items=10)
+    notes: str = Field(default="", max_length=2000)
 
 _REPORT_SYSTEM_PROMPT = """You are a senior SOC analyst writing a professional incident report.
 You will receive structured security data as JSON.
@@ -55,9 +91,18 @@ class AnthropicAdapter:
                 "note": "Set REPORT_NARRATIVE_ENABLED=true and ANTHROPIC_API_KEY to enable.",
             }
 
+        # Validate input schema
+        try:
+            validated = IncidentData(**incident_data)
+        except ValueError as e:
+            return {
+                "error": f"Invalid incident data: {str(e)}",
+                "code": "SCHEMA_VALIDATION_ERROR",
+            }
+
         prompt = (
             "Generate an incident report narrative for the following security incident data:\n\n"
-            + json.dumps(incident_data, indent=2, default=str)
+            + json.dumps(validated.model_dump(), indent=2, default=str)
         )
         return await self._call(prompt, _REPORT_SYSTEM_PROMPT)
 
@@ -68,9 +113,18 @@ class AnthropicAdapter:
                 "note": "Set REPORT_NARRATIVE_ENABLED=true and ANTHROPIC_API_KEY to enable.",
             }
 
+        # Validate input schema
+        try:
+            validated = SummaryData(**summary_data)
+        except ValueError as e:
+            return {
+                "error": f"Invalid summary data: {str(e)}",
+                "code": "SCHEMA_VALIDATION_ERROR",
+            }
+
         prompt = (
             "Generate a weekly security briefing for the following alert statistics:\n\n"
-            + json.dumps(summary_data, indent=2, default=str)
+            + json.dumps(validated.model_dump(), indent=2, default=str)
         )
         return await self._call(prompt, _SUMMARY_SYSTEM_PROMPT)
 

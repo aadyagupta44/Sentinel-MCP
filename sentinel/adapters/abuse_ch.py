@@ -24,7 +24,7 @@ tracer = trace.get_tracer("sentinel.adapters.abuse_ch")
 
 _FEODOTRACKER_URL = "https://feodotracker.abuse.ch/downloads/ipblocklist.txt"
 _URLHAUS_URL = "https://urlhaus.abuse.ch/downloads/text/"
-_BAZAAR_URL = "https://bazaar.abuse.ch/export/csv/recent/"
+_BAZAAR_URL = "https://bazaar.abuse.ch/export/csv/recent/"  # HTTPS enforced for feed integrity
 _URLHAUS_API = "https://urlhaus-api.abuse.ch/v1/"
 _BAZAAR_API = "https://mb-api.abuse.ch/api/v1/"
 _THREATFOX_API = "https://threatfox-api.abuse.ch/api/v1/"
