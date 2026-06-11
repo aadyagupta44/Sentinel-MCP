@@ -7,7 +7,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 
 # Copy dependency files first (layer cache)
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 COPY sentinel/__init__.py ./sentinel/
 
 # Install production dependencies only
