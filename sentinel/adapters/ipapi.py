@@ -90,7 +90,7 @@ class IPApiAdapter(BaseAdapter):
         try:
             resp = await self._call("GET", url, span_name="lookup")
             resp.raise_for_status()
-            data = resp.json()
+            data: dict[str, Any] = resp.json()
             if data.get("status") == "fail":
                 self._log.warning("ipapi_fail", message=data.get("message"), ip=ip)
                 return {"status": "fail", "query": ip}

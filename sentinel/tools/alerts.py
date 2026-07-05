@@ -168,7 +168,7 @@ async def _execute_correlate_alerts(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _shared_factors(a: dict[str, Any], cluster_entities: dict[str, set]) -> list[str]:
+def _shared_factors(a: dict[str, Any], cluster_entities: dict[str, set[str]]) -> list[str]:
     shared: list[str] = []
     for key in ("user", "host", "ip"):
         if a.get(key) and a[key] in cluster_entities.get(key, set()):

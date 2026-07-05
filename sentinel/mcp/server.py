@@ -9,7 +9,8 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
     name="sentinel-mcp",
-    instructions="""You are connected to Sentinel MCP, a production-grade SOC (Security Operations Center) server.
+    instructions="""You are connected to Sentinel MCP, a production-grade \
+SOC (Security Operations Center) server.
 
 ## Available Tools
 

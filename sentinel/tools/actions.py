@@ -173,14 +173,14 @@ async def disable_user(
 
 
 async def _mock_block_ip(params: dict[str, Any]) -> dict[str, Any]:
-    # No dedicated firewall adapter — the block is recorded in the Postgres
-    # blocklist (surfaced via the sentinel://watchlist/ips resource). In
-    # production this also pushes to the perimeter firewall.
-    return {
-        "ip_address": params["ip_address"],
-        "action": "blocked",
-        "storage": "postgres_blocklist",
-    }
+    # Delegates to the firewall adapter: persists to the durable Postgres block
+    # list (surfaced via sentinel://watchlist/ips) and, when FIREWALL_ENABLED,
+    # pushes the rule to the perimeter firewall. In mock mode this is a stub.
+    from sentinel.adapters.firewall import get_firewall_adapter
+
+    return await get_firewall_adapter().block_ip(
+        params["ip_address"], params["reason"], get_settings().analyst_id
+    )
 
 
 async def _execute_block_ip(args: dict[str, Any]) -> dict[str, Any]:

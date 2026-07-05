@@ -44,7 +44,8 @@ class URLScanAdapter(BaseAdapter):
                 headers={"API-Key": self._api_key},
             )
             resp.raise_for_status()
-            return resp.json()
+            payload: dict[str, Any] = resp.json()
+            return payload
         except CircuitOpenError:
             raise
         except Exception as exc:
@@ -77,7 +78,8 @@ class URLScanAdapter(BaseAdapter):
                 self._log.warning("urlscan_rate_limited")
                 return {"error": "rate_limited"}
             resp.raise_for_status()
-            return resp.json()
+            payload: dict[str, Any] = resp.json()
+            return payload
         except CircuitOpenError:
             raise
         except Exception as exc:
@@ -102,7 +104,8 @@ class URLScanAdapter(BaseAdapter):
             if resp.status_code == 404:
                 return {}
             resp.raise_for_status()
-            return resp.json()
+            payload: dict[str, Any] = resp.json()
+            return payload
         except CircuitOpenError:
             raise
         except Exception as exc:

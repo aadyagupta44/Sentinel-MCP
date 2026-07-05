@@ -195,7 +195,10 @@ async def _execute_weekly_summary(args: dict[str, Any]) -> dict[str, Any]:
 
     adapter = get_opensearch_adapter()
     stats = await adapter.aggregate_alerts(time_window_hours=168)
-    alerts = await adapter.get_alerts(limit=500)
+    # Bound the per-alert breakdown to the same 7-day window as the aggregate,
+    # otherwise top_risky_users / top_source_ips reflect the most recent 500
+    # alerts of all time rather than the week the summary claims to cover.
+    alerts = await adapter.get_alerts(limit=500, time_window_hours=168)
 
     by_user: dict[str, int] = {}
     by_ip: dict[str, int] = {}

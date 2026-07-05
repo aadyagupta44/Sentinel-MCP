@@ -1,0 +1,156 @@
+name: sentinel-mcp-demo
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Setup 2 — the public DEMO deployment.
+#
+# This is Setup 1 (company-hosted, multi-analyst, OAuth + roles) running for
+# real, with only the tool DATA mocked (DEMO_MODE=true). Auth, roles, policy,
+# rate limiting and the tamper-evident audit chain are all genuinely live.
+#
+# Stack (fits comfortably on a small always-free VM, ~2 GB total):
+#   caddy      — TLS termination + landing page + reverse proxy (public :80/:443)
+#   sentinel   — the MCP server (HTTP transport, demo mode)
+#   keycloak   — OAuth 2.1 / OIDC identity provider (analyst + senior demo users)
+#   postgres   — audit log + Keycloak store
+#   redis      — rate limiting
+#   opa        — policy engine (defence in depth)
+#
+# OpenSearch / Wazuh / OTel are intentionally absent — they are only needed for
+# LIVE data, which the demo does not use.
+#
+# Configure ./.env.prod (copy from .env.prod.example) then:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Caddy: HTTPS + landing page + reverse proxy ──────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./landing:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - sentinel
+      - keycloak
+
+  # ── MCP server (demo mode) ───────────────────────────────────────────────────
+  sentinel:
+    build: .
+    restart: unless-stopped
+    environment:
+      - MCP_TRANSPORT=http
+      - HTTP_HOST=0.0.0.0
+      - HTTP_PORT=8000
+      - ENVIRONMENT=production
+      - DEMO_MODE=true
+      - MOCK_ADAPTERS=true
+      - POLICY_ENFORCEMENT=true
+      - RATE_LIMIT_ENABLED=true
+      - DATABASE_URL=postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel
+      - REDIS_URL=redis://redis:6379/0
+      - OPA_URL=http://opa:8181
+      # Public issuer — must match Keycloak's KC_HOSTNAME so JWT `iss` validates.
+      - KEYCLOAK_URL=https://id.${DOMAIN}
+      - KEYCLOAK_REALM=sentinel
+      - OAUTH_CLIENT_ID=claude-desktop
+      - OAUTH_REDIRECT_URI=https://${DOMAIN}/auth/callback
+      - OTEL_ENABLED=false
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opa:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ── Keycloak: OAuth / OIDC identity provider ─────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: sentinel
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Public hostname — tokens are issued with iss=https://id.${DOMAIN}/realms/…
+      KC_HOSTNAME: https://id.${DOMAIN}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── PostgreSQL (audit log + Keycloak store) ──────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sentinel
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-keycloak-db.sql:/docker-entrypoint-initdb.d/init-keycloak-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (rate limiting) ────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── OPA (policy engine) ──────────────────────────────────────────────────────
+  opa:
+    image: openpolicyagent/opa:latest-static
+    restart: unless-stopped
+    volumes:
+      - ./policies:/policies:ro
+    command:
+      - "run"
+      - "--server"
+      - "--addr=0.0.0.0:8181"
+      - "--log-level=info"
+      - "/policies"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8181/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

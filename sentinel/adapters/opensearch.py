@@ -52,7 +52,8 @@ class OpenSearchAdapter(BaseAdapter):
                 resp.raise_for_status()
                 await self._breaker.record_success()
                 data = resp.json()
-                return data.get("_source")
+                source: dict[str, Any] | None = data.get("_source")
+                return source
             except Exception as exc:
                 await self._breaker.record_failure()
                 self._log.warning("opensearch_get_alert_failed", error=str(exc), alert_id=alert_id)
@@ -100,6 +101,7 @@ class OpenSearchAdapter(BaseAdapter):
         self,
         status: str | None = None,
         limit: int = 100,
+        time_window_hours: int | None = None,
     ) -> list[dict[str, Any]]:
         if self.is_mock:
             alerts = mock.list_active_alerts()
@@ -112,8 +114,17 @@ class OpenSearchAdapter(BaseAdapter):
             "size": min(limit, 1000),
             "sort": [{"timestamp": {"order": "desc"}}],
         }
+        # Build a bool query only when we actually have constraints, so an
+        # unconstrained call still matches all alerts (match_all default).
+        must: list[dict[str, Any]] = []
+        filters: list[dict[str, Any]] = []
         if status:
-            body["query"] = {"term": {"status": status}}
+            must.append({"term": {"status": status}})
+        if time_window_hours is not None:
+            since = datetime.now(UTC) - timedelta(hours=time_window_hours)
+            filters.append({"range": {"timestamp": {"gte": since.isoformat()}}})
+        if must or filters:
+            body["query"] = {"bool": {"must": must, "filter": filters}}
 
         url = f"{self._base_url}/{self._index_alerts}/_search"
         with tracer.start_as_current_span("opensearch.get_alerts"):
@@ -140,6 +151,9 @@ class OpenSearchAdapter(BaseAdapter):
                 "open": 2,
                 "closed": 1,
             }
+
+        if self._breaker.is_open():
+            raise CircuitOpenError(self.adapter_name)
 
         since = datetime.now(UTC) - timedelta(hours=time_window_hours)
         body = {
@@ -188,6 +202,9 @@ class OpenSearchAdapter(BaseAdapter):
         """Write a document — used by the simulator."""
         if self.is_mock:
             return True
+
+        if self._breaker.is_open():
+            raise CircuitOpenError(self.adapter_name)
 
         url = f"{self._base_url}/{index}/_doc/{doc_id}"
         with tracer.start_as_current_span("opensearch.index_document"):

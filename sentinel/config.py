@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     wazuh_api_key: str = ""
     wazuh_verify_ssl: bool = False
 
+    # ── Perimeter firewall (optional) ─────────────────────────────────────────
+    # When disabled, block_ip still persists to the durable Postgres block list
+    # but performs no external push. When enabled, blocks are additionally
+    # pushed to the firewall's REST API.
+    firewall_enabled: bool = False
+    firewall_url: str = "https://localhost:8443"
+    firewall_api_key: str = ""
+    firewall_verify_ssl: bool = True
+
     # ── Threat intel — all optional, degrade gracefully if absent ─────────────
     virustotal_api_key: str = ""
     abuseipdb_api_key: str = ""
@@ -81,6 +90,14 @@ class Settings(BaseSettings):
 
     # ── Mock mode ─────────────────────────────────────────────────────────────
     mock_adapters: bool = True
+
+    # ── Demo mode ─────────────────────────────────────────────────────────────
+    # A production-hardened public showcase: auth, roles, policy, rate limiting
+    # and the audit chain all run for real, but adapters return simulated data
+    # (MOCK_ADAPTERS=true) so no real credentials or security telemetry are
+    # exposed. This is the ONLY circumstance under which production tolerates
+    # mock adapters — see validate_runtime().
+    demo_mode: bool = False
 
     # ── Rate limiting ─────────────────────────────────────────────────────────
     rate_limit_enabled: bool = True
@@ -159,7 +176,10 @@ class Settings(BaseSettings):
         if self.is_production:
             if not self.policy_enforcement:
                 problems.append("POLICY_ENFORCEMENT must be true in production")
-            if self.mock_adapters:
+            # Real production must never be mock. The sole exception is the
+            # public demo, which opts in explicitly via DEMO_MODE=true and keeps
+            # every other production guarantee (auth, policy, audit) intact.
+            if self.mock_adapters and not self.demo_mode:
                 problems.append("MOCK_ADAPTERS must be false in production")
             if "localhost" in self.database_url:
                 problems.append("DATABASE_URL still points at localhost in production")

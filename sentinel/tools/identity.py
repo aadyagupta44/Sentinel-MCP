@@ -1,15 +1,16 @@
 """Identity and user risk tools.
 
-user_context    — FULLY IMPLEMENTED (Phase 2, mock data)
-recent_logins   — FULLY IMPLEMENTED (Phase 2, mock data)
-risk_score_user — FULLY IMPLEMENTED (Phase 2, mock data)
+user_context    — Keycloak adapter
+recent_logins   — Keycloak adapter
+risk_score_user — derived live from recent_logins + user_context signals
+                  (foreign-country logins, missing MFA, known-bad source IPs via
+                  enrich_ioc, and sensitive group membership). No longer a mock.
 """
 
 from typing import Any
 
 from sentinel.mcp.middleware import run_middleware
 from sentinel.mcp.server import mcp
-from sentinel.tools import mock_data as mock
 
 # ── user_context ──────────────────────────────────────────────────────────────
 
@@ -91,12 +92,98 @@ async def recent_logins(email: str, days: int = 7) -> dict[str, Any]:
 # ── risk_score_user ───────────────────────────────────────────────────────────
 
 
+def _level_for(score: int) -> str:
+    if score >= 81:
+        return "critical"
+    if score >= 61:
+        return "high"
+    if score >= 31:
+        return "medium"
+    return "low"
+
+
 async def _execute_risk_score_user(args: dict[str, Any]) -> dict[str, Any]:
+    from datetime import UTC, datetime
+
     email = str(args.get("email", "")).strip().lower()
     if not email or "@" not in email:
         return {"error": "Valid email address is required", "code": "INVALID_PARAMETER"}
 
-    return mock.risk_score(email)
+    # Pull the real identity + login signals this score is derived from.
+    context = await _execute_user_context({"email": email})
+    if context.get("code") == "NOT_FOUND":
+        return {"email": email, "score": 0, "level": "unknown", "factors": []}
+
+    logins_result = await _execute_recent_logins({"email": email, "days": 14})
+    logins = logins_result.get("logins", []) if "error" not in logins_result else []
+
+    score = 0
+    factors: list[dict[str, Any]] = []
+
+    # 1. Logins missing MFA
+    no_mfa = [login for login in logins if not login.get("mfa_method")]
+    if no_mfa:
+        score += 15
+        factors.append(
+            {
+                "factor": "login_without_mfa",
+                "weight": 15,
+                "detail": f"{len(no_mfa)} login(s) with no MFA method recorded",
+            }
+        )
+
+    # 2. Logins from multiple countries (impossible-travel proxy)
+    countries = {login.get("country") for login in logins if login.get("country")}
+    if len(countries) > 1:
+        score += 25
+        factors.append(
+            {
+                "factor": "multiple_login_countries",
+                "weight": 25,
+                "detail": f"Logins from {len(countries)} countries: {', '.join(sorted(countries))}",
+            }
+        )
+
+    # 3. Source IPs that enrich as malicious/suspicious
+    from sentinel.tools.enrichment import enrich_indicator
+
+    source_ips = {login.get("ip_address") for login in logins if login.get("ip_address")}
+    bad_ips: list[str] = []
+    for ip in sorted(source_ips):
+        verdict = (await enrich_indicator(ip, "ip")).get("verdict")
+        if verdict in ("malicious", "suspicious"):
+            bad_ips.append(ip)
+    if bad_ips:
+        score += 35
+        factors.append(
+            {
+                "factor": "login_from_known_bad_ip",
+                "weight": 35,
+                "detail": f"Login(s) from flagged IP(s): {', '.join(bad_ips)}",
+            }
+        )
+
+    # 4. Membership in sensitive / privileged groups
+    groups = context.get("groups", []) or []
+    sensitive = [g for g in groups if any(k in g.lower() for k in ("sensitive", "admin"))]
+    if sensitive:
+        score += 10
+        factors.append(
+            {
+                "factor": "access_to_sensitive_systems",
+                "weight": 10,
+                "detail": f"Member of: {', '.join(sensitive)}",
+            }
+        )
+
+    score = min(score, 100)
+    return {
+        "email": email,
+        "score": score,
+        "level": _level_for(score),
+        "factors": factors,
+        "assessed_at": datetime.now(UTC).isoformat(),
+    }
 
 
 @mcp.tool()

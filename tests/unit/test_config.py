@@ -40,6 +40,26 @@ def test_production_rejects_mock_adapters():
     assert any("MOCK_ADAPTERS" in p for p in problems)
 
 
+def test_demo_mode_permits_mock_adapters_in_production():
+    # The public demo runs production-hardened (auth/policy/audit real) but with
+    # simulated data; DEMO_MODE=true is the explicit opt-in that allows it.
+    problems = _settings(mock_adapters=True, demo_mode=True).validate_runtime()
+    assert not any("MOCK_ADAPTERS" in p for p in problems)
+    assert problems == []
+
+
+def test_demo_mode_still_enforces_other_production_guards():
+    # Demo mode only whitelists mock adapters — every other guard still fires.
+    problems = _settings(
+        mock_adapters=True,
+        demo_mode=True,
+        policy_enforcement=False,
+        database_url="postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel",
+    ).validate_runtime()
+    assert any("POLICY_ENFORCEMENT" in p for p in problems)
+    assert any("DATABASE_URL" in p for p in problems)
+
+
 def test_production_rejects_localhost_database():
     problems = _settings(
         database_url="postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel"

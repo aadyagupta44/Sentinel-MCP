@@ -71,14 +71,14 @@ class AbuseCHAdapter(BaseAdapter):
             self._download_urlhaus(),
             self._download_bazaar(),
         ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        results: list[Any] = await asyncio.gather(*tasks, return_exceptions=True)
         feodo, urlhaus, bazaar = results
 
-        if not isinstance(feodo, Exception):
+        if not isinstance(feodo, BaseException):
             self._feodo_ips = feodo
-        if not isinstance(urlhaus, Exception):
+        if not isinstance(urlhaus, BaseException):
             self._urlhaus_hosts = urlhaus
-        if not isinstance(bazaar, Exception):
+        if not isinstance(bazaar, BaseException):
             self._bazaar_hashes = bazaar
 
         self._loaded = True
@@ -184,7 +184,8 @@ class AbuseCHAdapter(BaseAdapter):
                 resp = await self._retry_request("POST", _URLHAUS_API + "url/", data={"url": url})
                 resp.raise_for_status()
                 await self._breaker.record_success()
-                return resp.json()
+                payload: dict[str, Any] = resp.json()
+                return payload
             except Exception as exc:
                 await self._breaker.record_failure()
                 self._log.warning("urlhaus_lookup_failed", error=str(exc))
@@ -211,7 +212,8 @@ class AbuseCHAdapter(BaseAdapter):
                 )
                 resp.raise_for_status()
                 await self._breaker.record_success()
-                return resp.json()
+                payload: dict[str, Any] = resp.json()
+                return payload
             except Exception as exc:
                 await self._breaker.record_failure()
                 self._log.warning("bazaar_lookup_failed", error=str(exc))
@@ -230,7 +232,8 @@ class AbuseCHAdapter(BaseAdapter):
                 )
                 resp.raise_for_status()
                 await self._breaker.record_success()
-                return resp.json()
+                payload: dict[str, Any] = resp.json()
+                return payload
             except Exception as exc:
                 await self._breaker.record_failure()
                 self._log.warning("threatfox_lookup_failed", error=str(exc))

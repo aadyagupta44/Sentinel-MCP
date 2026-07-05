@@ -83,6 +83,34 @@ class PendingAction(Base):
     )
 
 
+class BlockedIP(Base):
+    """Durable IP block list — the authoritative record of blocked IPs.
+
+    Written by the firewall adapter when block_ip is confirmed. Surfaced to
+    analysts via the sentinel://watchlist/ips resource so one analyst can see
+    what another has already actioned. In production the same block is also
+    pushed to the perimeter firewall; this table is the system of record even
+    if the firewall push is unavailable.
+    """
+
+    __tablename__ = "blocked_ips"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ip_address: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    blocked_by: Mapped[str] = mapped_column(Text, nullable=False)
+    blocked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    firewall_pushed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    __table_args__ = (
+        Index("ix_blocked_ips_ip_address", "ip_address", unique=True),
+        Index("ix_blocked_ips_active", "active"),
+    )
+
+
 class ThreatIntelCache(Base):
     """Caches expensive threat intel API responses.
 

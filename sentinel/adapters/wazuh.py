@@ -174,7 +174,8 @@ class WazuhAdapter(BaseAdapter):
                 params={"date": since.isoformat(), "type": event_type, "limit": 500},
             )
             resp.raise_for_status()
-            return resp.json().get("data", {}).get("affected_items", [])
+            items: list[dict[str, Any]] = resp.json().get("data", {}).get("affected_items", [])
+            return items
         except CircuitOpenError:
             raise
         except Exception as exc:

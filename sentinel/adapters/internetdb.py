@@ -77,7 +77,7 @@ class InternetDBAdapter(BaseAdapter):
                 await self._store_cached(ip, result)
                 return result
             resp.raise_for_status()
-            data = resp.json()
+            data: dict[str, Any] = resp.json()
             await self._store_cached(ip, data)
             return data
         except CircuitOpenError:

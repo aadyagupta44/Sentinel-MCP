@@ -1,0 +1,28 @@
+# Caddy config for the Sentinel MCP demo.
+# Auto-provisions Let's Encrypt TLS for both hostnames (ports 80/443 must be open
+# and {$DOMAIN} + id.{$DOMAIN} must resolve to this VM — DuckDNS wildcards cover
+# id.<name>.duckdns.org automatically).
+
+# ── Main site: landing page + the MCP server ─────────────────────────────────
+{$DOMAIN} {
+	encode gzip
+
+	# The MCP server's API surface is proxied to the sentinel container.
+	@api path /mcp* /auth* /tools* /.well-known/* /health
+	handle @api {
+		reverse_proxy sentinel:8000
+	}
+
+	# Everything else (including /) is the static portfolio landing page.
+	handle {
+		root * /srv
+		file_server
+	}
+}
+
+# ── Identity provider: Keycloak ──────────────────────────────────────────────
+# Separate hostname so token issuer (iss) is stable and matches KC_HOSTNAME.
+id.{$DOMAIN} {
+	encode gzip
+	reverse_proxy keycloak:8080
+}

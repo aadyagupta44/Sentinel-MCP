@@ -100,7 +100,7 @@ services:
       - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
       # Dev only — disable security for local setup
       - plugins.security.disabled=true
-      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=SentinelDev@123
     ports:
       - "9200:9200"
     volumes:

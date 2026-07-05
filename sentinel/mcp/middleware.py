@@ -35,9 +35,13 @@ _PHONE_PATTERN = re.compile(r"\d{3}[-.]?\d{3}[-.]?\d{4}")
 async def run_middleware(
     tool_name: str,
     arguments: dict[str, Any],
-    execute_fn: Callable[[dict[str, Any]], Awaitable[Any]],
-) -> Any:
-    """Run the full middleware pipeline for one tool call."""
+    execute_fn: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
+) -> dict[str, Any]:
+    """Run the full middleware pipeline for one tool call.
+
+    Always returns a dict — either the tool's result or a structured error
+    object. It never raises and never returns None.
+    """
     settings = get_settings()
     trace_id = str(uuid.uuid4())
     start = time.monotonic()
@@ -145,9 +149,26 @@ async def run_middleware(
                     "retry_after_seconds": 60,
                 }
 
+    # ── 3b. Audit pre-flight for write tools (fail closed) ────────────────────
+    # A destructive action must never execute unlogged. If the tamper-evident
+    # audit store is unreachable, refuse write tools before any side effect
+    # rather than acting silently. Read tools are unaffected.
+    from sentinel.auth.authz import WRITE_TOOLS as _WRITE_TOOLS
+
+    if settings.is_production and tool_name in _WRITE_TOOLS:
+        from sentinel.audit.log import audit_store_healthy
+
+        if not await audit_store_healthy():
+            log.error("write_tool_blocked_audit_unavailable", tool=tool_name)
+            return {
+                "error": "Audit store unavailable — write tools refuse to act unlogged",
+                "code": "AUDIT_UNAVAILABLE",
+                "retry_after_seconds": 30,
+            }
+
     # ── 4. Execute ────────────────────────────────────────────────────────────
     response_code = "success"
-    result: Any = None
+    result: dict[str, Any] = {}
     try:
         result = await execute_fn(arguments)
     except Exception as exc:

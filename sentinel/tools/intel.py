@@ -1,7 +1,8 @@
-"""Threat intelligence tools (Phase 4).
+"""Threat intelligence tools.
 
-enrich_ioc      — multi-source composite verdict (curated mock composite;
-                  the individual source adapters are implemented + tested in Phase 3)
+enrich_ioc      — live multi-source composite verdict; fans out concurrently to
+                  the Phase-3 source adapters and merges their results
+                  (sentinel/tools/enrichment.py). Works in mock and live mode.
 threat_hunt     — OpenSearch adapter (full-archive indicator search)
 mitre_technique — MITRE adapter (local STIX 2.1 ATT&CK dataset)
 """
@@ -10,7 +11,6 @@ from typing import Any
 
 from sentinel.mcp.middleware import run_middleware
 from sentinel.mcp.server import mcp
-from sentinel.tools import mock_data as mock
 
 _VALID_IOC_TYPES = {"ip", "domain", "hash", "url"}
 
@@ -30,7 +30,9 @@ async def _execute_enrich_ioc(args: dict[str, Any]) -> dict[str, Any]:
             "code": "INVALID_PARAMETER",
         }
 
-    return mock.enrich_ioc(indicator, indicator_type)
+    from sentinel.tools.enrichment import enrich_indicator
+
+    return await enrich_indicator(indicator, indicator_type)
 
 
 @mcp.tool()
@@ -85,8 +87,10 @@ async def _execute_threat_hunt(args: dict[str, Any]) -> dict[str, Any]:
         }
         for h in hits
     ]
-    timestamps = sorted(a["timestamp"] for a in appearances if a.get("timestamp"))
-    hosts = sorted({a["host"] for a in appearances if a.get("host")})
+    timestamps = sorted(
+        str(a["timestamp"]) for a in appearances if a.get("timestamp")
+    )
+    hosts = sorted({str(a["host"]) for a in appearances if a.get("host")})
     return {
         "indicator": indicator,
         "look_back_days": look_back_days,

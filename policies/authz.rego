@@ -33,48 +33,48 @@ write_tools := {
 # ── Allow rules ───────────────────────────────────────────────────────────────
 
 # Analysts can call all read tools
-allow {
+allow if {
     input.role == "analyst"
     input.tool_name in read_tools
 }
 
-reason = "analyst_read_allowed" {
+reason = "analyst_read_allowed" if {
     input.role == "analyst"
     input.tool_name in read_tools
 }
 
 # Analysts are denied write tools with a clear reason
-reason = "write_tools_require_senior_analyst" {
+reason = "write_tools_require_senior_analyst" if {
     input.role == "analyst"
     input.tool_name in write_tools
 }
 
 # Senior analysts can call both read and write tools
-allow {
+allow if {
     input.role == "senior_analyst"
     input.tool_name in read_tools
 }
 
-allow {
+allow if {
     input.role == "senior_analyst"
     input.tool_name in write_tools
 }
 
-reason = "senior_analyst_allowed" {
+reason = "senior_analyst_allowed" if {
     input.role == "senior_analyst"
     input.tool_name in read_tools | write_tools
 }
 
 # Admins can call everything
-allow {
+allow if {
     input.role == "admin"
 }
 
-reason = "admin_allowed" {
+reason = "admin_allowed" if {
     input.role == "admin"
 }
 
 # Unknown role — deny with reason
-reason = "unknown_role" {
+reason = "unknown_role" if {
     not input.role in {"analyst", "senior_analyst", "admin"}
 }

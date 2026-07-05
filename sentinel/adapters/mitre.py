@@ -167,7 +167,7 @@ class MitreAdapter(BaseAdapter):
     def _extract_technique_id(obj: dict[str, Any]) -> str | None:
         for ref in obj.get("external_references", []):
             if ref.get("source_name") == "mitre-attack":
-                return ref.get("external_id", "")
+                return str(ref.get("external_id", ""))
         return None
 
     @staticmethod
@@ -177,7 +177,7 @@ class MitreAdapter(BaseAdapter):
 
     @staticmethod
     def _extract_x_mitre(obj: dict[str, Any], field: str) -> str:
-        return obj.get(f"x_mitre_{field}", "")
+        return str(obj.get(f"x_mitre_{field}", ""))
 
     # ── Lookup ────────────────────────────────────────────────────────────────
 

@@ -161,6 +161,48 @@ class TestBreakerOnHttpErrors:
         await adapter.close()
 
 
+class TestRetryPolicyTiming:
+    """Assert the retry/backoff *policy* directly (Phase 3 gap).
+
+    The suite neutralises asyncio.sleep for speed, so backoff timing is never
+    exercised behaviorally. These tests inspect the tenacity policy attached to
+    _retry_request so a regression in the wait schedule / attempt cap / retried
+    exception set actually fails a test.
+    """
+
+    def _retrying(self):
+        # tenacity attaches the controller as `.retry` on the wrapped coroutine
+        return BaseAdapter._retry_request.retry
+
+    def test_stops_after_three_attempts(self):
+        controller = self._retrying()
+        assert controller.stop.max_attempt_number == 3
+
+    def test_exponential_backoff_sequence_is_capped_at_10(self):
+        wait = self._retrying().wait  # wait_exponential(multiplier=1, min=1, max=10)
+
+        class _State:
+            def __init__(self, n: int) -> None:
+                self.attempt_number = n
+
+        # 1s, 2s, 4s, 8s, then capped at 10s (would be 16s uncapped)
+        assert wait(_State(1)) == 1
+        assert wait(_State(2)) == 2
+        assert wait(_State(3)) == 4
+        assert wait(_State(4)) == 8
+        assert wait(_State(5)) == 10
+
+    def test_only_retries_network_and_timeout_errors(self):
+        import httpx
+
+        retry_predicate = self._retrying().retry
+        types = retry_predicate.exception_types
+        assert httpx.TimeoutException in types
+        assert httpx.NetworkError in types
+        # A plain HTTP 500 (HTTPStatusError) is NOT a transport error → not retried
+        assert not issubclass(httpx.HTTPStatusError, tuple(types))
+
+
 class TestStateReadIsPure:
     def test_state_read_does_not_mutate_underlying_state(self):
         import time as _time

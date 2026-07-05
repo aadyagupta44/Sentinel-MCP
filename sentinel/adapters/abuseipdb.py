@@ -93,7 +93,8 @@ class AbuseIPDBAdapter(BaseAdapter):
                 },
             )
             resp.raise_for_status()
-            return resp.json().get("data", {})
+            data: dict[str, Any] = resp.json().get("data", {})
+            return data
         except CircuitOpenError:
             raise
         except Exception as exc:

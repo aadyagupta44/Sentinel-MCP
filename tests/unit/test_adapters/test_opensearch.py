@@ -100,6 +100,34 @@ class TestOpenSearchSuccess:
         assert result == [{"alert_id": "A1"}]
         await adapter.close()
 
+    async def test_get_alerts_time_window_adds_range_filter(self, respx_mock, live_mode):
+        # weekly_summary bounds its per-alert breakdown to the same 7-day window
+        # as the aggregate — assert the range filter actually lands in the query.
+        route = respx_mock.post(ALERTS_SEARCH).mock(
+            return_value=Response(200, json={"hits": {"hits": []}})
+        )
+        adapter = OpenSearchAdapter()
+        await adapter.get_alerts(limit=500, time_window_hours=168)
+        import json as _json
+
+        body = _json.loads(route.calls.last.request.content)
+        filters = body["query"]["bool"]["filter"]
+        assert any("range" in f and "timestamp" in f["range"] for f in filters)
+        await adapter.close()
+
+    async def test_get_alerts_no_window_has_no_query(self, respx_mock, live_mode):
+        # An unconstrained call must match all alerts (no bool query at all).
+        route = respx_mock.post(ALERTS_SEARCH).mock(
+            return_value=Response(200, json={"hits": {"hits": []}})
+        )
+        adapter = OpenSearchAdapter()
+        await adapter.get_alerts(limit=10)
+        import json as _json
+
+        body = _json.loads(route.calls.last.request.content)
+        assert "query" not in body
+        await adapter.close()
+
     async def test_aggregate_alerts_success_returns_weekly_contract(self, respx_mock, live_mode):
         # The live branch must return the SAME {total, by_severity, open, closed}
         # contract weekly_summary consumes (not raw agg buckets).
@@ -215,6 +243,14 @@ class TestOpenSearchCircuitBreaker:
             await adapter._breaker.record_failure()
         with pytest.raises(CircuitOpenError):
             await adapter.get_alerts()
+        await adapter.close()
+
+    async def test_aggregate_alerts_raises_when_circuit_open(self, live_mode):
+        adapter = OpenSearchAdapter()
+        for _ in range(5):
+            await adapter._breaker.record_failure()
+        with pytest.raises(CircuitOpenError):
+            await adapter.aggregate_alerts()
         await adapter.close()
 
 

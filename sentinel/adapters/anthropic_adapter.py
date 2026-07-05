@@ -30,7 +30,7 @@ class IncidentData(BaseModel):
     description: str = Field(default="", max_length=5000)
     affected_user: str = Field(default="", max_length=200)
     affected_host: str = Field(default="", max_length=200)
-    technique_ids: list[str] = Field(default_factory=list, max_items=10)
+    technique_ids: list[str] = Field(default_factory=list, max_length=10)
     confidence: str = Field(default="medium", pattern="^(high|medium|low)$")
 
     @field_validator("technique_ids")
@@ -53,7 +53,7 @@ class SummaryData(BaseModel):
     low_count: int = Field(default=0, ge=0)
     unique_users: int = Field(default=0, ge=0, le=10000)
     unique_hosts: int = Field(default=0, ge=0, le=10000)
-    top_rules: list[str] = Field(default_factory=list, max_items=10)
+    top_rules: list[str] = Field(default_factory=list, max_length=10)
     trend: str = Field(default="stable", pattern="^(improving|stable|worsening)$")
     notes: str = Field(default="", max_length=2000)
 
@@ -142,13 +142,20 @@ class AnthropicAdapter:
                 system=system_prompt,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = message.content[0].text.strip()
+            # Duck-typed: real SDK returns a TextBlock (.text), and the first
+            # block of a text completion always is one. getattr keeps mypy happy
+            # about the block union without asserting a concrete type.
+            raw_text = getattr(message.content[0], "text", None)
+            if not isinstance(raw_text, str):
+                return {"error": "Model returned a non-text block", "code": "PARSE_ERROR"}
+            raw = raw_text.strip()
             # Parse the JSON response
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"):
                     raw = raw[4:]
-            return json.loads(raw)
+            parsed: dict[str, Any] = json.loads(raw)
+            return parsed
         except json.JSONDecodeError as exc:
             self._log.warning("anthropic_json_parse_failed", error=str(exc))
             return {"error": "Model returned non-JSON response", "code": "PARSE_ERROR"}

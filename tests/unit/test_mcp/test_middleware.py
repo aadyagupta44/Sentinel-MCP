@@ -185,6 +185,62 @@ class TestRateLimitRedisDown:
         assert result["alert_id"] == "ALT-1"  # read tool still runs (degraded)
 
 
+class TestAuditPreflightFailClosed:
+    """Phase 1: a write tool must never execute unlogged in production."""
+
+    async def test_write_tool_blocked_when_audit_store_down_in_prod(self, allow_policy):
+        executed = {"ran": False}
+
+        async def tool_fn(args):
+            executed["ran"] = True
+            return {"action_type": "isolate_device"}
+
+        prod = MagicMock()
+        prod.rate_limit_enabled = False
+        prod.is_production = True
+        prod.analyst_id = "a@x.com"
+        prod.analyst_role = "admin"
+
+        with (
+            patch("sentinel.mcp.middleware.get_settings", return_value=prod),
+            patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
+            patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
+            patch(
+                "sentinel.audit.log.audit_store_healthy",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+        ):
+            result = await run_middleware("isolate_device", {"hostname": "H"}, tool_fn)
+
+        assert result["code"] == "AUDIT_UNAVAILABLE"
+        assert executed["ran"] is False  # side effect never happened
+
+    async def test_read_tool_unaffected_by_audit_preflight(self, allow_policy):
+        async def tool_fn(args):
+            return {"alert_id": "ALT-1"}
+
+        prod = MagicMock()
+        prod.rate_limit_enabled = False
+        prod.is_production = True
+        prod.analyst_id = "a@x.com"
+        prod.analyst_role = "admin"
+
+        with (
+            patch("sentinel.mcp.middleware.get_settings", return_value=prod),
+            patch("sentinel.mcp.middleware.get_opa_engine", return_value=allow_policy),
+            patch("sentinel.mcp.middleware.write_audit_log", new_callable=AsyncMock),
+            patch(
+                "sentinel.audit.log.audit_store_healthy",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+        ):
+            result = await run_middleware("get_alert", {"alert_id": "ALT-1"}, tool_fn)
+
+        assert result["alert_id"] == "ALT-1"  # reads are never blocked by this gate
+
+
 class TestPrincipalAuthorization:
     async def test_analyst_principal_denied_write_tool(self, allow_policy):
         from sentinel.auth.context import (

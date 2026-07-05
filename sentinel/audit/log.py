@@ -87,6 +87,22 @@ async def write_audit_log(entry: AuditEntry) -> None:
     )
 
 
+async def audit_store_healthy() -> bool:
+    """Cheap pre-flight: can we reach the audit store to write a row?
+
+    Used by the middleware to fail write tools CLOSED when the tamper-evident
+    log is unreachable — a destructive action must never execute unlogged.
+    """
+    try:
+        factory = get_session_factory()
+        async with factory() as session:
+            await session.execute(text("SELECT 1"))
+        return True
+    except Exception as exc:
+        logger.error("audit_store_unhealthy", error=str(exc))
+        return False
+
+
 async def verify_chain_integrity(
     session: AsyncSession,
 ) -> tuple[bool, int, str | None]:

@@ -9,6 +9,7 @@ HTTP mode   → FastAPI app. OAuth 2.1 + PKCE via Keycloak, RS256 JWT validation
 
 import json
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -17,7 +18,8 @@ import uvicorn
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
 
 # Import tool, resource, and prompt modules to trigger @mcp.tool() /
 # @mcp.resource() / @mcp.prompt() registration with the FastMCP instance.
@@ -56,7 +58,9 @@ _MAX_BODY_SIZE = 1048576
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         response = await call_next(request)
         # Prevent MIME type sniffing
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -65,18 +69,25 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Enable HSTS (strict transport security) — 1 year + subdomains
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         # CSP: disable inline scripts, only same-origin styles
-        response.headers["Content-Security-Policy"] = "default-src 'self'; style-src 'self'; script-src 'self'"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; style-src 'self'; script-src 'self'"
+        )
         # Referrer policy: only send referrer within same origin
         response.headers["Referrer-Policy"] = "same-origin"
         # Disable permissions policy (no camera, mic, geolocation, etc.)
-        response.headers["Permissions-Policy"] = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        response.headers["Permissions-Policy"] = (
+            "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+            "magnetometer=(), microphone=(), payment=(), usb=()"
+        )
         return response
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
     """Enforce maximum request body size (DoS protection)."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         # Check Content-Length header before reading body
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > _MAX_BODY_SIZE:
@@ -91,7 +102,7 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # type: ignore[type-arg]
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Fail fast on an unsafe production configuration (auth off, mock adapters
     # on, placeholder secrets) rather than discovering it at first request.
     problems = settings.validate_runtime()
@@ -103,6 +114,7 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
         transport=settings.mcp_transport,
         environment=settings.environment,
         mock_adapters=settings.mock_adapters,
+        demo_mode=settings.demo_mode,
     )
     await init_db()
     yield
@@ -312,7 +324,11 @@ async def call_tool_http(
         reset_current_principal(ctx)
 
     content = result[0] if isinstance(result, tuple) else result
-    return json.loads(content[0].text)
+    block = content[0] if isinstance(content, (list, tuple)) else content
+    raw = getattr(block, "text", None)
+    if not isinstance(raw, str):
+        return {}
+    return json.loads(raw)
 
 
 # ── Mount MCP (HTTP transport only) ──────────────────────────────────────────

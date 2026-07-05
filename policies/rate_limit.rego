@@ -8,12 +8,12 @@ default allow = true
 default reason = "within_limit"
 
 # Deny if count exceeds the configured limit for this tool
-allow = false {
+allow = false if {
     limit := rate_limits[input.tool_name]
     input.count > limit
 }
 
-reason = "rate_limit_exceeded" {
+reason = "rate_limit_exceeded" if {
     limit := rate_limits[input.tool_name]
     input.count > limit
 }
