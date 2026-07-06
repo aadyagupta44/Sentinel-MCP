@@ -22,7 +22,16 @@
         "https://*.hf.space/*"
       ],
       "webOrigins": ["+"],
-      "optionalClientScopes": ["soc:read", "soc:write"]
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "basic",
+        "email",
+        "soc:read",
+        "soc:write"
+      ]
     }
   ],
   "clientScopes": [
