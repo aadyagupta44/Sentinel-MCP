@@ -181,9 +181,16 @@ class Settings(BaseSettings):
             # every other production guarantee (auth, policy, audit) intact.
             if self.mock_adapters and not self.demo_mode:
                 problems.append("MOCK_ADAPTERS must be false in production")
-            if "localhost" in self.database_url:
+            # The single-container demo legitimately co-locates Postgres/Keycloak
+            # on localhost; real production must point at managed services, so
+            # these two checks are relaxed only under the explicit demo opt-in.
+            if "localhost" in self.database_url and not self.demo_mode:
                 problems.append("DATABASE_URL still points at localhost in production")
-            if self.mcp_transport == "http" and "localhost" in self.keycloak_url:
+            if (
+                self.mcp_transport == "http"
+                and "localhost" in self.keycloak_url
+                and not self.demo_mode
+            ):
                 problems.append("KEYCLOAK_URL still points at localhost in production HTTP mode")
         return problems
 

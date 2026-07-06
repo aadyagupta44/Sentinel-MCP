@@ -18,7 +18,8 @@
       },
       "redirectUris": [
         "http://localhost:*",
-        "https://claude.ai/*"
+        "https://claude.ai/*",
+        "https://*.hf.space/*"
       ],
       "webOrigins": ["+"]
     }

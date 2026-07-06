@@ -48,16 +48,25 @@ def test_demo_mode_permits_mock_adapters_in_production():
     assert problems == []
 
 
-def test_demo_mode_still_enforces_other_production_guards():
-    # Demo mode only whitelists mock adapters — every other guard still fires.
+def test_demo_mode_relaxes_localhost_for_colocated_stack():
+    # The single-container demo co-locates Postgres/Keycloak on localhost, so
+    # demo mode relaxes those two checks (but nothing else).
     problems = _settings(
         mock_adapters=True,
         demo_mode=True,
-        policy_enforcement=False,
+        mcp_transport="http",
         database_url="postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel",
+        keycloak_url="http://localhost:8080",
+    ).validate_runtime()
+    assert problems == []
+
+
+def test_demo_mode_still_enforces_policy_enforcement():
+    # Demo mode does NOT weaken authorization — policy enforcement is still required.
+    problems = _settings(
+        mock_adapters=True, demo_mode=True, policy_enforcement=False
     ).validate_runtime()
     assert any("POLICY_ENFORCEMENT" in p for p in problems)
-    assert any("DATABASE_URL" in p for p in problems)
 
 
 def test_production_rejects_localhost_database():

@@ -1,0 +1,30 @@
+# Single public port for the Space (Hugging Face terminates TLS in front of this).
+# Routes the one host to Keycloak, the MCP app, or the static landing page.
+{
+	admin off
+	auto_https off
+}
+
+:7860 {
+	encode gzip
+
+	# Keycloak (OAuth/OIDC) — its own path prefixes.
+	@keycloak path /realms/* /resources/* /admin/* /js/* /robots.txt
+	handle @keycloak {
+		reverse_proxy 127.0.0.1:8080 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	# The MCP server's API surface.
+	@api path /mcp* /auth* /tools* /.well-known/* /health
+	handle @api {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# Everything else (including /) is the static landing page.
+	handle {
+		root * /srv
+		file_server
+	}
+}
