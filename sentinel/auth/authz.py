@@ -56,9 +56,16 @@ def authorize(principal: Principal, tool_name: str) -> tuple[bool, str]:
     if tool_name not in READ_TOOLS and tool_name not in WRITE_TOOLS:
         return False, "unknown_tool"
 
-    scope = required_scope(tool_name)
-    if not principal.has_scope(scope):
-        return False, f"missing_scope:{scope}"
+    # The public demo authorizes on ROLE alone: identity still comes from a real
+    # OAuth 2.1 login, but the demo identity provider issues only standard OIDC
+    # scopes (no custom soc:read/soc:write), so the scope gate is skipped there.
+    # Real deployments keep the full scope + role check.
+    from sentinel.config import get_settings
+
+    if not get_settings().demo_mode:
+        scope = required_scope(tool_name)
+        if not principal.has_scope(scope):
+            return False, f"missing_scope:{scope}"
 
     if tool_name in WRITE_TOOLS and principal.role not in WRITE_ROLES:
         return False, "write_requires_senior_analyst"

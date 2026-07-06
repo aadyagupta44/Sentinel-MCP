@@ -22,34 +22,8 @@
         "https://*.hf.space/*"
       ],
       "webOrigins": ["+"],
-      "optionalClientScopes": [
-        "soc:read",
-        "soc:write",
-        "offline_access",
-        "address",
-        "phone",
-        "microprofile-jwt"
-      ]
-    }
-  ],
-  "clientScopes": [
-    {
-      "name": "soc:read",
-      "description": "Read access to SOC tools",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
-    },
-    {
-      "name": "soc:write",
-      "description": "Write and response actions on SOC tools",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      }
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "basic", "email"],
+      "optionalClientScopes": ["offline_access", "address", "phone", "microprofile-jwt"]
     }
   ],
   "roles": {

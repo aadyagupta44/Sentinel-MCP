@@ -55,6 +55,10 @@ export KEYCLOAK_URL="${PUBLIC_URL}"
 export KEYCLOAK_REALM="sentinel"
 export OAUTH_CLIENT_ID="claude-desktop"
 export OAUTH_REDIRECT_URI="${PUBLIC_URL}/auth/callback"
+# The demo IdP only issues standard OIDC scopes — advertise just those so the
+# client never requests custom scopes Keycloak doesn't have. Authorization is
+# by role (see authz.py demo_mode branch).
+export OAUTH_DEFAULT_SCOPES="openid profile"
 export OTEL_ENABLED="false"
 export LOG_LEVEL="INFO"
 
