@@ -21,7 +21,28 @@
         "https://claude.ai/*",
         "https://*.hf.space/*"
       ],
-      "webOrigins": ["+"]
+      "webOrigins": ["+"],
+      "optionalClientScopes": ["soc:read", "soc:write"]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "soc:read",
+      "description": "Read access to SOC tools",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "soc:write",
+      "description": "Write and response actions on SOC tools",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
     }
   ],
   "roles": {

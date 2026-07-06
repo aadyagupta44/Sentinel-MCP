@@ -45,6 +45,9 @@ RUN curl -fsSL -o /tmp/kc.tar.gz \
 # Override with --build-arg REPO_URL=... / REPO_REF=... if your repo differs.
 ARG REPO_URL=https://github.com/aadyagupta44/Sentinel-SOC.git
 ARG REPO_REF=main
+# Bust the layer cache whenever the repo's HEAD moves, so rebuilds re-clone the
+# latest code (otherwise Docker reuses a stale cached clone).
+ADD https://api.github.com/repos/aadyagupta44/Sentinel-SOC/commits/main /tmp/repo-head.json
 RUN git clone --depth 1 --branch ${REPO_REF} ${REPO_URL} /app
 WORKDIR /app
 RUN (uv sync --frozen --no-dev --no-editable 2>/dev/null || uv sync --no-dev)
