@@ -16,8 +16,17 @@
 		}
 	}
 
-	# The MCP server's API surface.
-	@api path /mcp* /auth* /tools* /.well-known/* /health
+	# The MCP streamable endpoint has DNS-rebinding protection that only accepts
+	# a localhost Host header, so present it as one to the app.
+	@mcp path /mcp*
+	handle @mcp {
+		reverse_proxy 127.0.0.1:8000 {
+			header_up Host 127.0.0.1:8000
+		}
+	}
+
+	# The rest of the app's API surface (keeps the real Host).
+	@api path /auth* /tools* /.well-known/* /health
 	handle @api {
 		reverse_proxy 127.0.0.1:8000
 	}

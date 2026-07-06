@@ -5,6 +5,8 @@ The server is imported by main.py and mounted on the FastAPI app (HTTP)
 or run directly (stdio).
 """
 
+import os
+
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
@@ -52,3 +54,15 @@ NEVER skip the confirmation step. Always show the proposal to the analyst first.
 
 ## All actions are logged to a tamper-evident audit trail.""",
 )
+
+# When running behind a trusted reverse proxy (the HTTP/demo deployment), the
+# public Host/Origin headers are never localhost, which FastMCP's DNS-rebinding
+# protection would reject. Set MCP_TRUST_PROXY=true there to relax it — safe
+# because the app itself only listens on localhost behind the proxy. This must
+# run before streamable_http_app() is built (main.py mounts it at import).
+if os.getenv("MCP_TRUST_PROXY", "").lower() in ("1", "true", "yes"):
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    mcp.settings.transport_security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=False
+    )

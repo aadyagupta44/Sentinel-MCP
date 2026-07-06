@@ -43,6 +43,8 @@ export KC_PROXY_HEADERS="xforwarded"
 export MCP_TRANSPORT="http"
 export HTTP_HOST="127.0.0.1"
 export HTTP_PORT="8000"
+# Behind Caddy — the public Host/Origin isn't localhost; trust the proxy.
+export MCP_TRUST_PROXY="true"
 export ENVIRONMENT="production"
 export DEMO_MODE="true"
 export MOCK_ADAPTERS="true"
