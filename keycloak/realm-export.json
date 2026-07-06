@@ -31,6 +31,13 @@
         "email",
         "soc:read",
         "soc:write"
+      ],
+      "optionalClientScopes": [
+        "offline_access",
+        "address",
+        "phone",
+        "microprofile-jwt",
+        "organization"
       ]
     }
   ],
