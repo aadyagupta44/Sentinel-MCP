@@ -22,22 +22,13 @@
         "https://*.hf.space/*"
       ],
       "webOrigins": ["+"],
-      "defaultClientScopes": [
-        "web-origins",
-        "acr",
-        "profile",
-        "roles",
-        "basic",
-        "email",
-        "soc:read",
-        "soc:write"
-      ],
       "optionalClientScopes": [
+        "soc:read",
+        "soc:write",
         "offline_access",
         "address",
         "phone",
-        "microprofile-jwt",
-        "organization"
+        "microprofile-jwt"
       ]
     }
   ],
