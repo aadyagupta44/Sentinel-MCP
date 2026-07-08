@@ -61,5 +61,18 @@
       "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
       "realmRoles": ["admin"]
     }
-  ]
+  ],
+  "components": {
+    "org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy": [
+      {
+        "name": "Trusted Hosts",
+        "providerId": "trusted-hosts",
+        "subType": "anonymous",
+        "config": {
+          "host-sending-registration-request-must-match": ["false"],
+          "client-uris-must-match": ["false"]
+        }
+      }
+    ]
+  }
 }
