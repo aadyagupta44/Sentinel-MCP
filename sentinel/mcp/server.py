@@ -57,10 +57,18 @@ NEVER skip the confirmation step. Always show the proposal to the analyst first.
 
 # When running behind a trusted reverse proxy (the HTTP/demo deployment), the
 # public Host/Origin headers are never localhost, which FastMCP's DNS-rebinding
-# protection would reject. Set MCP_TRUST_PROXY=true there to relax it — safe
-# because the app itself only listens on localhost behind the proxy. This must
-# run before streamable_http_app() is built (main.py mounts it at import).
-if os.getenv("MCP_TRUST_PROXY", "").lower() in ("1", "true", "yes"):
+# protection would reject — causing Claude's /mcp connection to fail. Relax it
+# when demo_mode is on (the public demo is always proxied) or MCP_TRUST_PROXY is
+# set. Safe: the app only listens on localhost behind the proxy. Must run before
+# streamable_http_app() is built (main.py mounts it at import).
+from sentinel.config import get_settings as _get_settings
+
+_trust_proxy = _get_settings().demo_mode or os.getenv("MCP_TRUST_PROXY", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+if _trust_proxy:
     from mcp.server.transport_security import TransportSecuritySettings
 
     mcp.settings.transport_security = TransportSecuritySettings(
