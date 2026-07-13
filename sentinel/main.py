@@ -117,7 +117,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         demo_mode=settings.demo_mode,
     )
     await init_db()
-    yield
+    # A mounted sub-app's lifespan is NOT run by the parent FastAPI app, so the
+    # MCP streamable-HTTP session manager must be started here explicitly — else
+    # every /mcp request 500s with "Task group is not initialized".
+    if settings.mcp_transport == "http":
+        async with mcp.session_manager.run():
+            yield
+    else:
+        yield
     await close_db()
     logger.info("sentinel_stopped")
 
@@ -168,6 +175,15 @@ class McpAuthMiddleware:
             )
             await response(scope, receive, send)
             return
+
+        # The transport is mounted at "/mcp" and serves at "/mcp/" internally.
+        # Rewrite an exact "/mcp" to "/mcp/" so a bare request reaches the
+        # handler directly instead of bouncing through a 307 redirect that some
+        # clients won't follow with the Authorization header intact.
+        if scope.get("path") == "/mcp":
+            scope = dict(scope)
+            scope["path"] = "/mcp/"
+            scope["raw_path"] = b"/mcp/"
 
         ctx = set_current_principal(principal)
         try:

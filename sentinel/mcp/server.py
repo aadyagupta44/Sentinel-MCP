@@ -74,3 +74,10 @@ if _trust_proxy:
     mcp.settings.transport_security = TransportSecuritySettings(
         enable_dns_rebinding_protection=False
     )
+
+# The streamable-HTTP app is mounted at "/mcp" in main.py. FastMCP's own route
+# defaults to "/mcp" too, so mounting it under "/mcp" would put the real endpoint
+# at "/mcp/mcp" and make a bare POST /mcp a dead redirect. Set the internal path
+# to "/" so the mount exposes the transport exactly at "/mcp". Must run before
+# streamable_http_app() is built (main.py builds it at import).
+mcp.settings.streamable_http_path = "/"

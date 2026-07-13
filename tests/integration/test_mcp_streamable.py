@@ -39,6 +39,11 @@ _MCP_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json, text/event-stream",
 }
+# These tests boot the streamable app UNMOUNTED, so its route is the internal
+# streamable_http_path — set to "/" (see sentinel/mcp/server.py) so that mounting
+# it at "/mcp" in production exposes the transport exactly at "/mcp". The auth
+# guard, which keys on the "/mcp" prefix, is still exercised with "/mcp" below.
+_MCP_PATH = "/"
 
 
 # ── ASGI lifespan runner ──────────────────────────────────────────────────────
@@ -85,7 +90,7 @@ def _parse_sse(text: str, want_id=None) -> dict:
     return payloads[0] if payloads else {}
 
 
-async def _initialize(client: AsyncClient):
+async def _initialize(client: AsyncClient, path: str = _MCP_PATH):
     """Run the initialize handshake; return (response, session_id)."""
     req = {
         "jsonrpc": "2.0",
@@ -97,7 +102,7 @@ async def _initialize(client: AsyncClient):
             "clientInfo": {"name": "pytest", "version": "1.0"},
         },
     }
-    resp = await client.post("/mcp", headers=_MCP_HEADERS, json=req)
+    resp = await client.post(path, headers=_MCP_HEADERS, json=req)
     return resp, resp.headers.get("mcp-session-id")
 
 
@@ -105,7 +110,7 @@ async def _session(client: AsyncClient) -> str:
     """Initialize and complete the handshake; return a ready-to-use session id."""
     _, sid = await _initialize(client)
     await client.post(
-        "/mcp",
+        _MCP_PATH,
         headers={**_MCP_HEADERS, "mcp-session-id": sid},
         json={"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
     )
@@ -114,7 +119,7 @@ async def _session(client: AsyncClient) -> str:
 
 async def _rpc(client: AsyncClient, sid: str, req_id: int, method: str, params: dict):
     resp = await client.post(
-        "/mcp",
+        _MCP_PATH,
         headers={**_MCP_HEADERS, "mcp-session-id": sid},
         json={"jsonrpc": "2.0", "id": req_id, "method": method, "params": params},
     )
@@ -183,7 +188,7 @@ class TestStreamableSession:
     async def test_request_without_session_id_is_rejected(self, streamable_client):
         # A tools/list without the mcp-session-id from initialize must not run.
         resp = await streamable_client.post(
-            "/mcp",
+            _MCP_PATH,
             headers=_MCP_HEADERS,
             json={"jsonrpc": "2.0", "id": 9, "method": "tools/list", "params": {}},
         )
@@ -201,6 +206,8 @@ class TestStreamableAuthGuard:
         async with AsyncClient(
             transport=ASGITransport(app=guarded), base_url=_BASE_URL
         ) as client:
-            resp, _ = await _initialize(client)
+            # Hit "/mcp" so the guard (which keys on the "/mcp" prefix) intercepts;
+            # the token is missing, so it's refused before routing ever happens.
+            resp, _ = await _initialize(client, path="/mcp")
         assert resp.status_code == 401
         assert resp.json()["code"] == "UNAUTHENTICATED"
