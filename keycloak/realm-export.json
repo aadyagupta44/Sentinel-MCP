@@ -41,7 +41,7 @@
       "firstName": "Alice",
       "lastName": "Analyst",
       "credentials": [{ "type": "password", "value": "analyst123", "temporary": false }],
-      "realmRoles": ["analyst"]
+      "realmRoles": ["analyst", "offline_access"]
     },
     {
       "username": "senior",
@@ -50,7 +50,7 @@
       "firstName": "Sam",
       "lastName": "Senior",
       "credentials": [{ "type": "password", "value": "senior123", "temporary": false }],
-      "realmRoles": ["senior_analyst"]
+      "realmRoles": ["senior_analyst", "offline_access"]
     },
     {
       "username": "admin",
@@ -59,7 +59,7 @@
       "firstName": "Adam",
       "lastName": "Admin",
       "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
-      "realmRoles": ["admin"]
+      "realmRoles": ["admin", "offline_access"]
     }
   ],
   "components": {
