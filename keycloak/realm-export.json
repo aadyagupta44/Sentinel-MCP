@@ -62,7 +62,6 @@
       "realmRoles": ["admin"]
     }
   ],
-  "comment_client_registration": "Allow anonymous Dynamic Client Registration for MCP clients (Claude). Keycloak forbids a Trusted Hosts policy with both checks off, and re-adds its restrictive defaults if a realm has zero registration policies. So we DROP Trusted Hosts and keep one permissive policy (a high Max Clients cap) to hold the policy count above zero — leaving anonymous DCR open.",
   "components": {
     "org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy": [
       {
