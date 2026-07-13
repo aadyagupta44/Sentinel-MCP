@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     mcp_transport: Literal["stdio", "http"] = "stdio"
     http_host: str = "0.0.0.0"
     http_port: int = 8000
+    # Public origin the server is reachable at (e.g. https://user-space.hf.space).
+    # Behind a reverse proxy the incoming Host is rewritten (Caddy forces the /mcp
+    # Host to localhost), so absolute discovery URLs must come from here, not the
+    # request. Exported as PUBLIC_URL by the demo's entrypoint. Empty → derive a
+    # best-effort local URL from http_host/http_port.
+    public_url: str = ""
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     environment: Literal["development", "production", "test"] = "development"
     version: str = "1.0.0"
@@ -144,6 +150,25 @@ class Settings(BaseSettings):
     def has_anthropic(self) -> bool:
         return bool(self.anthropic_api_key) and self.report_narrative_enabled
 
+    # ── Public origin / resource discovery (RFC 9728) ─────────────────────────
+    @property
+    def public_base_url(self) -> str:
+        """The externally reachable origin, without a trailing slash."""
+        if self.public_url:
+            return self.public_url.rstrip("/")
+        host = "localhost" if self.http_host in ("0.0.0.0", "127.0.0.1") else self.http_host
+        return f"http://{host}:{self.http_port}"
+
+    @property
+    def mcp_resource_url(self) -> str:
+        """The OAuth-protected resource identifier — the MCP endpoint itself."""
+        return f"{self.public_base_url}/mcp"
+
+    @property
+    def protected_resource_metadata_url(self) -> str:
+        """RFC 9728 metadata URL advertised in the WWW-Authenticate challenge."""
+        return f"{self.public_base_url}/.well-known/oauth-protected-resource/mcp"
+
     # ── OIDC / Keycloak endpoints ─────────────────────────────────────────────
     @property
     def keycloak_realm_url(self) -> str:
@@ -164,6 +189,16 @@ class Settings(BaseSettings):
     @property
     def oidc_jwks_uri(self) -> str:
         return f"{self.keycloak_realm_url}/protocol/openid-connect/certs"
+
+    @property
+    def oidc_registration_endpoint(self) -> str:
+        """Keycloak's OIDC Dynamic Client Registration endpoint (RFC 7591).
+
+        MCP clients like Claude that don't have a pre-provisioned client_id use
+        this to register themselves on the fly. Anonymous registration is enabled
+        on the demo realm (see keycloak/realm-export.json Trusted Hosts policy).
+        """
+        return f"{self.keycloak_realm_url}/clients-registrations/openid-connect"
 
     # ── Startup validation ────────────────────────────────────────────────────
     def validate_runtime(self) -> list[str]:

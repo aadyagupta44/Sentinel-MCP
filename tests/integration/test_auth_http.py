@@ -138,6 +138,34 @@ class TestMcpTransportGuard:
         assert resp.status_code == 401
         assert resp.json()["code"] == "UNAUTHENTICATED"
 
+    async def test_mcp_401_points_at_resource_metadata(self, http_client):
+        # RFC 9728: the challenge must tell the client where to discover the
+        # authorization server, or Claude Desktop can't complete the connector.
+        resp = await http_client.post("/mcp", json={})
+        challenge = resp.headers.get("www-authenticate", "")
+        assert challenge.startswith("Bearer ")
+        assert "resource_metadata=" in challenge
+        assert "/.well-known/oauth-protected-resource/mcp" in challenge
+
+
+class TestProtectedResourceMetadata:
+    async def test_resource_metadata_advertises_keycloak_as(self, http_client):
+        for path in (
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-protected-resource/mcp",
+        ):
+            meta = (await http_client.get(path)).json()
+            assert meta["resource"].endswith("/mcp")
+            assert meta["authorization_servers"], "must name an authorization server"
+            assert any("/realms/" in s for s in meta["authorization_servers"])
+
+    async def test_oauth_metadata_exposes_registration_endpoint(self, http_client):
+        # Clients without a pre-provisioned client_id (Claude) need DCR.
+        meta = (await http_client.get("/.well-known/oauth-authorization-server")).json()
+        assert meta["registration_endpoint"].endswith(
+            "/clients-registrations/openid-connect"
+        )
+
 
 class TestManifestAdvertisesOAuth:
     async def test_manifest_and_oauth_metadata(self, http_client):

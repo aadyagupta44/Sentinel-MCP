@@ -150,13 +150,21 @@ class McpAuthMiddleware:
                 principal = None
 
         if principal is None:
+            # RFC 9728: point the client at the protected-resource metadata so it
+            # can discover the authorization server (Keycloak) and register/auth.
+            # Without this, Claude Desktop can't complete the connector flow and
+            # bounces back to the app unauthenticated.
+            challenge = (
+                'Bearer resource_metadata='
+                f'"{settings.protected_resource_metadata_url}"'
+            )
             response = JSONResponse(
                 {
                     "error": "Authentication required for the MCP HTTP transport",
                     "code": "UNAUTHENTICATED",
                 },
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                headers={"WWW-Authenticate": "Bearer"},
+                headers={"WWW-Authenticate": challenge},
             )
             await response(scope, receive, send)
             return
@@ -234,6 +242,8 @@ async def mcp_manifest() -> dict[str, Any]:
                 "auth": "oauth2_pkce",
                 "authorization_endpoint": settings.oidc_authorize_endpoint,
                 "token_endpoint": settings.oidc_token_endpoint,
+                "registration_endpoint": settings.oidc_registration_endpoint,
+                "resource_metadata": settings.protected_resource_metadata_url,
                 "scopes": settings.oauth_default_scopes.split(),
             },
             "stdio": {"supported": True},
@@ -248,12 +258,38 @@ async def oauth_metadata() -> dict[str, Any]:
         "issuer": settings.oidc_issuer,
         "authorization_endpoint": settings.oidc_authorize_endpoint,
         "token_endpoint": settings.oidc_token_endpoint,
+        "registration_endpoint": settings.oidc_registration_endpoint,
         "jwks_uri": settings.oidc_jwks_uri,
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "scopes_supported": settings.oauth_default_scopes.split(),
     }
+
+
+# ── OAuth 2.0 Protected Resource Metadata (RFC 9728) ──────────────────────────
+# Claude Desktop discovers these to learn which authorization server (Keycloak)
+# issues tokens for this MCP server. Served at both the bare well-known path and
+# the resource-scoped (/mcp) variant, since clients probe either form.
+
+
+def _protected_resource_metadata() -> dict[str, Any]:
+    return {
+        "resource": settings.mcp_resource_url,
+        "authorization_servers": [settings.oidc_issuer],
+        "scopes_supported": settings.oauth_default_scopes.split(),
+        "bearer_methods_supported": ["header"],
+    }
+
+
+@app.get("/.well-known/oauth-protected-resource")
+async def protected_resource_metadata() -> dict[str, Any]:
+    return _protected_resource_metadata()
+
+
+@app.get("/.well-known/oauth-protected-resource/mcp")
+async def protected_resource_metadata_mcp() -> dict[str, Any]:
+    return _protected_resource_metadata()
 
 
 # ── OAuth 2.1 + PKCE flow helpers ─────────────────────────────────────────────
