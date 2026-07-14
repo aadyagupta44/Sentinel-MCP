@@ -89,8 +89,7 @@ period of inactivity may take up to a minute while the service wakes.
 
 ### Demo video
 
-<!-- Replace the line below with your demo video link or an embedded thumbnail. -->
-_A walkthrough video will be added here._
+https://github.com/user-attachments/assets/f5bea64c-0e8c-4550-a565-dcfa904e913f
 
 The walkthrough covers:
 
