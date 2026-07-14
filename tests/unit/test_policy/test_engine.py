@@ -35,7 +35,9 @@ class TestIsAllowed:
     @respx.mock
     async def test_allows_when_opa_returns_true(self, engine):
         respx.post("http://opa-test:8181/v1/data/sentinel/authz").mock(
-            return_value=Response(200, json={"result": {"allow": True, "reason": "analyst_read_allowed"}})
+            return_value=Response(
+                200, json={"result": {"allow": True, "reason": "analyst_read_allowed"}}
+            )
         )
         allowed, reason = await engine.is_allowed("get_alert", "alice@corp.com", "analyst")
         assert allowed is True
@@ -44,7 +46,10 @@ class TestIsAllowed:
     @respx.mock
     async def test_denies_when_opa_returns_false(self, engine):
         respx.post("http://opa-test:8181/v1/data/sentinel/authz").mock(
-            return_value=Response(200, json={"result": {"allow": False, "reason": "write_tools_require_senior_analyst"}})
+            return_value=Response(
+                200,
+                json={"result": {"allow": False, "reason": "write_tools_require_senior_analyst"}},
+            )
         )
         allowed, reason = await engine.is_allowed("isolate_device", "alice@corp.com", "analyst")
         assert allowed is False
@@ -87,7 +92,9 @@ class TestRateLimit:
     @respx.mock
     async def test_exceeded_limit_returns_false(self, engine):
         respx.post("http://opa-test:8181/v1/data/sentinel/rate_limit").mock(
-            return_value=Response(200, json={"result": {"allow": False, "reason": "rate_limit_exceeded"}})
+            return_value=Response(
+                200, json={"result": {"allow": False, "reason": "rate_limit_exceeded"}}
+            )
         )
         within, reason = await engine.check_rate_limit("get_alert", "alice@corp.com", 200)
         assert within is False

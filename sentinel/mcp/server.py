@@ -9,6 +9,8 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
+from sentinel.config import get_settings as _get_settings
+
 mcp = FastMCP(
     name="sentinel-mcp",
     instructions="""You are connected to Sentinel MCP, a production-grade \
@@ -61,8 +63,6 @@ NEVER skip the confirmation step. Always show the proposal to the analyst first.
 # when demo_mode is on (the public demo is always proxied) or MCP_TRUST_PROXY is
 # set. Safe: the app only listens on localhost behind the proxy. Must run before
 # streamable_http_app() is built (main.py mounts it at import).
-from sentinel.config import get_settings as _get_settings
-
 _trust_proxy = _get_settings().demo_mode or os.getenv("MCP_TRUST_PROXY", "").lower() in (
     "1",
     "true",

@@ -50,7 +50,7 @@ class TestRecentLogins:
         from sentinel.tools.identity import _execute_recent_logins
 
         result = await _execute_recent_logins({"email": "bob.finance@acmecorp.com", "days": 7})
-        ips = [l["ip_address"] for l in result["logins"]]
+        ips = [login["ip_address"] for login in result["logins"]]
         assert "185.220.101.34" in ips
 
     async def test_days_capped_at_90(self):

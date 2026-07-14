@@ -85,15 +85,19 @@ class TestToolCalls:
         ):
             mock_opa.return_value.is_allowed = AsyncMock(return_value=(True, "ok"))
             mock_opa.return_value.check_rate_limit = AsyncMock(return_value=(True, "ok"))
-            result = await mcp.call_tool("enrich_ioc", {"indicator": "185.220.101.34", "indicator_type": "ip"})
+            result = await mcp.call_tool(
+                "enrich_ioc", {"indicator": "185.220.101.34", "indicator_type": "ip"}
+            )
 
         text = result[0].text if hasattr(result[0], "text") else str(result)
         assert "malicious" in text
 
     async def test_unknown_tool_raises_error(self):
+        from mcp.server.fastmcp.exceptions import ToolError
+
         from sentinel.mcp.server import mcp
 
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             await mcp.call_tool("nonexistent_tool", {})
 
     async def test_policy_denied_returns_structured_error(self):

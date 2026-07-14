@@ -15,7 +15,7 @@ import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -265,7 +265,9 @@ async def _get_rate_count(tool_name: str, analyst_id: str) -> int:
         pipe.zcard(key)
         pipe.expire(key, 120)
         results = await pipe.execute()
-        await r.aclose()
+        # aclose() is the correct async close in modern redis-py; cast to Any so
+        # the call type-checks across redis stub versions (older stubs lack it).
+        await cast(Any, r).aclose()
         return int(results[2])
     except Exception as exc:
         logger.warning("redis_rate_limit_error", error=str(exc))
