@@ -12,9 +12,7 @@ from sentinel.main import app
 
 @pytest.fixture
 async def client():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
@@ -36,6 +34,7 @@ class TestHealthEndpoint:
 
     async def test_health_version_matches_package(self, client):
         from sentinel import __version__
+
         resp = await client.get("/health")
         assert resp.json()["version"] == __version__
 

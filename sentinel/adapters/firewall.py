@@ -148,9 +148,7 @@ class FirewallAdapter(BaseAdapter):
             factory = get_session_factory()
             async with factory() as session:
                 row = (
-                    await session.execute(
-                        select(BlockedIP).where(BlockedIP.ip_address == ip)
-                    )
+                    await session.execute(select(BlockedIP).where(BlockedIP.ip_address == ip))
                 ).scalar_one_or_none()
                 if row is not None:
                     row.firewall_pushed = True

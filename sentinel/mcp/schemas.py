@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 # ── Error models ──────────────────────────────────────────────────────────────
 
+
 class ToolError(BaseModel):
     error: str
     code: str
@@ -37,6 +38,7 @@ class CircuitOpen(BaseModel):
 
 
 # ── Write-tool confirmation models ────────────────────────────────────────────
+
 
 class ProposedAction(BaseModel):
     """Returned by write tools when confirmed=False (first call).
@@ -74,6 +76,7 @@ class ConfirmedAction(BaseModel):
 
 # ── Enrichment verdict ────────────────────────────────────────────────────────
 
+
 class EnrichmentVerdict(BaseModel):
     verdict: Literal["malicious", "suspicious", "clean", "unknown"]
     confidence: float = Field(ge=0.0, le=1.0)
@@ -82,6 +85,7 @@ class EnrichmentVerdict(BaseModel):
 
 
 # ── Common output models ──────────────────────────────────────────────────────
+
 
 class AlertSummary(BaseModel):
     alert_id: str

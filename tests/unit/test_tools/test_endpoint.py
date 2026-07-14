@@ -1,7 +1,6 @@
 """Unit tests for endpoint forensics tools."""
 
 
-
 class TestDeviceProcesses:
     async def test_returns_process_list(self):
         from sentinel.tools.endpoint import _execute_device_processes

@@ -1,6 +1,5 @@
 """SecretsProvider tests."""
 
-
 from sentinel.secrets import EnvSecretsProvider, get_secrets_provider
 
 
@@ -23,6 +22,7 @@ class TestEnvSecretsProvider:
 
     def test_get_secrets_provider_returns_env_provider(self):
         import sentinel.secrets as secrets_module
+
         secrets_module._provider = None  # reset singleton
         provider = get_secrets_provider()
         assert isinstance(provider, EnvSecretsProvider)

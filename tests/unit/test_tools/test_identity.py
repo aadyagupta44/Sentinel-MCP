@@ -1,7 +1,6 @@
 """Unit tests for identity tools."""
 
 
-
 class TestUserContext:
     async def test_known_user_returns_profile(self):
         from sentinel.tools.identity import _execute_user_context

@@ -87,9 +87,7 @@ async def _execute_threat_hunt(args: dict[str, Any]) -> dict[str, Any]:
         }
         for h in hits
     ]
-    timestamps = sorted(
-        str(a["timestamp"]) for a in appearances if a.get("timestamp")
-    )
+    timestamps = sorted(str(a["timestamp"]) for a in appearances if a.get("timestamp"))
     hosts = sorted({str(a["host"]) for a in appearances if a.get("host")})
     return {
         "indicator": indicator,

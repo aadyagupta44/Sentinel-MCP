@@ -57,6 +57,7 @@ class SummaryData(BaseModel):
     trend: str = Field(default="stable", pattern="^(improving|stable|worsening)$")
     notes: str = Field(default="", max_length=2000)
 
+
 _REPORT_SYSTEM_PROMPT = """You are a senior SOC analyst writing a professional incident report.
 You will receive structured security data as JSON.
 Return ONLY a valid JSON object with exactly these keys:

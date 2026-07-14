@@ -162,9 +162,7 @@ class TestProtectedResourceMetadata:
     async def test_oauth_metadata_exposes_registration_endpoint(self, http_client):
         # Clients without a pre-provisioned client_id (Claude) need DCR.
         meta = (await http_client.get("/.well-known/oauth-authorization-server")).json()
-        assert meta["registration_endpoint"].endswith(
-            "/clients-registrations/openid-connect"
-        )
+        assert meta["registration_endpoint"].endswith("/clients-registrations/openid-connect")
 
 
 class TestManifestAdvertisesOAuth:

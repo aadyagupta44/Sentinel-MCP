@@ -79,9 +79,7 @@ async def _boot(app):
 def _parse_sse(text: str, want_id=None) -> dict:
     """Return the JSON-RPC payload from an SSE body (matching want_id if given)."""
     payloads = [
-        json.loads(line[5:].strip())
-        for line in text.splitlines()
-        if line.startswith("data:")
+        json.loads(line[5:].strip()) for line in text.splitlines() if line.startswith("data:")
     ]
     if want_id is not None:
         for p in payloads:
@@ -142,9 +140,7 @@ async def streamable_client():
         patch("sentinel.mcp.middleware.get_opa_engine", return_value=opa),
     ):
         async with _boot(app):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url=_BASE_URL
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url=_BASE_URL) as client:
                 yield client
 
 
@@ -203,9 +199,7 @@ class TestStreamableAuthGuard:
         # confirm an initialize with no bearer is refused before it ever reaches
         # the session manager.
         guarded = McpAuthMiddleware(streamable_client._transport.app)
-        async with AsyncClient(
-            transport=ASGITransport(app=guarded), base_url=_BASE_URL
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=guarded), base_url=_BASE_URL) as client:
             # Hit "/mcp" so the guard (which keys on the "/mcp" prefix) intercepts;
             # the token is missing, so it's refused before routing ever happens.
             resp, _ = await _initialize(client, path="/mcp")

@@ -32,9 +32,7 @@ class AuditLog(Base):
     policy_result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     response_code: Mapped[str] = mapped_column(Text, nullable=False)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
-    metadata_: Mapped[dict[str, Any] | None] = mapped_column(
-        "metadata", JSONB, nullable=True
-    )
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
 
     __table_args__ = (
         Index("ix_audit_log_timestamp", "timestamp"),
@@ -72,9 +70,7 @@ class PendingAction(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     executed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     __table_args__ = (
@@ -127,9 +123,7 @@ class ThreatIntelCache(Base):
     cached_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         Index(

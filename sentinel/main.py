@@ -58,9 +58,7 @@ _MAX_BODY_SIZE = 1048576
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
         # Prevent MIME type sniffing
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -85,9 +83,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
     """Enforce maximum request body size (DoS protection)."""
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Check Content-Length header before reading body
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > _MAX_BODY_SIZE:
@@ -161,10 +157,7 @@ class McpAuthMiddleware:
             # can discover the authorization server (Keycloak) and register/auth.
             # Without this, Claude Desktop can't complete the connector flow and
             # bounces back to the app unauthenticated.
-            challenge = (
-                'Bearer resource_metadata='
-                f'"{settings.protected_resource_metadata_url}"'
-            )
+            challenge = f'Bearer resource_metadata="{settings.protected_resource_metadata_url}"'
             response = JSONResponse(
                 {
                     "error": "Authentication required for the MCP HTTP transport",

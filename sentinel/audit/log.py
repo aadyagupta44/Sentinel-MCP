@@ -50,9 +50,7 @@ async def write_audit_log(entry: AuditEntry) -> None:
     factory = get_session_factory()
     async with factory() as session, session.begin():
         # Serialise across all workers — released automatically on commit/rollback
-        await session.execute(
-            text(f"SELECT pg_advisory_xact_lock({_ADVISORY_LOCK_KEY})")
-        )
+        await session.execute(text(f"SELECT pg_advisory_xact_lock({_ADVISORY_LOCK_KEY})"))
 
         prev_hash = await _get_last_hash(session)
 
@@ -156,6 +154,7 @@ async def verify_chain_integrity(
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
+
 
 async def _get_last_hash(session: AsyncSession) -> str:
     result = await session.execute(
